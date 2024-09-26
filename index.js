@@ -8,7 +8,7 @@ const port = 5000;
 app.use(cors());
 app.use(express.json());
 
-const { MongoClient, ServerApiVersion } = require("mongodb");
+const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.cn4db.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 
 // Create a MongoClient with a MongoClientOptions object to set the Stable API version
@@ -31,7 +31,9 @@ async function run() {
     // Users Post
     app.post("/users", async (req, res) => {
       const user = req.body;
-      const query = { email: user?.email };
+      const query = {
+        email: user?.email,
+      };
       const existingUser = await usersCollection.findOne(query);
       if (existingUser) {
         return res.send({
@@ -62,7 +64,28 @@ async function run() {
       const result = await productCollection.find().toArray();
       res.send(result);
     });
-
+    // patch product
+    app.patch("/products/edit/:id", async (req, res) => {
+      const id = req?.params?.id;
+      const editProduct = req.body;
+      const result = await productCollection.updateOne(
+        {
+          _id: new ObjectId(id),
+        },
+        {
+          $set: editProduct,
+        }
+      );
+      res.send(result);
+    });
+    // delete product
+    app.delete("/products/delete/:id", async (req, res) => {
+      const id = req?.params?.id;
+      const result = await productCollection.deleteOne({
+        _id: new ObjectId(id),
+      });
+      res.send(result);
+    });
     console.log("You successfully connected to MongoDB!");
   } finally {
     // Ensures that the client will close when you finish/error
