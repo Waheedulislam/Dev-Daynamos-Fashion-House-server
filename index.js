@@ -103,7 +103,7 @@ async function run() {
       res.send(result);
     });
     // Blogs get
-    app.get("/blogs/add", async (req, res) => {
+    app.get("/blogs/list", async (req, res) => {
       const result = await blogsCollection.find().toArray();
       res.send(result);
     });
