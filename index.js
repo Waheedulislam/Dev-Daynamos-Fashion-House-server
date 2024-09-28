@@ -61,10 +61,53 @@ async function run() {
       res.send(result);
     });
     // get all products
+    // app.get("/products/all", async (req, res) => {
+    //   const result = await productCollection.find().toArray();
+    //   res.send(result);
+    // });
+
+    // all product get
     app.get("/products/all", async (req, res) => {
-      const result = await productCollection.find().toArray();
-      res.send(result);
+      try {
+        const {
+          brands,
+          ramSizes,
+          colors,
+          driveSizes,
+          gpuBrands,
+          processors,
+          screenSizes,
+        } = req.query;
+
+        // Initialize query object
+        const query = {};
+
+        // Add filters to the query object if they exist
+        if (brands) query.brand = { $in: brands.split(",") };
+        if (ramSizes) query.ramSize = { $in: ramSizes.split(",") };
+        if (colors) query.color = { $in: colors.split(",") };
+        if (driveSizes) query.driveSize = { $in: driveSizes.split(",") };
+        if (gpuBrands) query.gpuBrand = { $in: gpuBrands.split(",") };
+        if (processors) query.processor = { $in: processors.split(",") };
+        if (screenSizes) query.screenSize = { $in: screenSizes.split(",") };
+
+        // Fetch products based on filters or all products if no filters are provided
+        const productsCursor =
+          Object.keys(query).length === 0
+            ? productCollection.find()
+            : productCollection.find(query);
+
+        // Convert cursor to an array
+        const products = await productsCursor.toArray();
+
+        // Send back the products or an empty array if no products exist
+        res.status(200).json(products);
+      } catch (error) {
+        console.error("Error fetching products:", error);
+        res.status(500).json({ message: "Error fetching products" });
+      }
     });
+
     // get single products
     app.get("/products/details/:id", async (req, res) => {
       const id = req?.params?.id;
