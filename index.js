@@ -26,6 +26,7 @@ async function run() {
     // Users
     const usersCollection = client.db("UsersDB").collection("Users");
     const productCollection = client.db("productDB").collection("Products");
+    const blogsCollection = client.db("BlogsDB").collection("Blogs");
 
     ////////////////////// User Collection ////////////////////////
     // Users Post
@@ -64,6 +65,12 @@ async function run() {
       const result = await productCollection.find().toArray();
       res.send(result);
     });
+    // get single products
+    app.get("/products/details/:id", async (req, res) => {
+      const id = req?.params?.id;
+      const result = await productCollection.findOne({ _id: new ObjectId(id) });
+      res.send(result);
+    });
     // patch product
     app.patch("/products/edit/:id", async (req, res) => {
       const id = req?.params?.id;
@@ -86,6 +93,27 @@ async function run() {
       });
       res.send(result);
     });
+
+    ////////////////////// blog Collection ////////////////////////
+
+    // Blogs add
+    app.post("/blogs/add", async (req, res) => {
+      const blogs = req.body;
+      const result = await blogsCollection.insertOne(blogs);
+      res.send(result);
+    });
+    // Blogs get
+    app.get("/blogs/add", async (req, res) => {
+      const result = await blogsCollection.find().toArray();
+      res.send(result);
+    });
+    // Blogs Delete
+    app.delete("/blogs/delete/:id", async (req, res) => {
+      const id = req.params.id;
+      const result = await blogsCollection.deleteOne({ _id: new ObjectId(id) });
+      res.send(result);
+    });
+
     console.log("You successfully connected to MongoDB!");
   } finally {
     // Ensures that the client will close when you finish/error
