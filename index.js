@@ -71,7 +71,7 @@ async function run() {
       try {
         const {
           brands,
-          ramSizes,
+          ram,
           colors,
           driveSizes,
           gpuBrands,
@@ -84,7 +84,7 @@ async function run() {
 
         // Add filters to the query object if they exist
         if (brands) query.brand = { $in: brands.split(",") };
-        if (ramSizes) query.ramSize = { $in: ramSizes.split(",") };
+        if (ram) query.ram = { $in: ram.split(",") };
         if (colors) query.color = { $in: colors.split(",") };
         if (driveSizes) query.driveSize = { $in: driveSizes.split(",") };
         if (gpuBrands) query.gpuBrand = { $in: gpuBrands.split(",") };
