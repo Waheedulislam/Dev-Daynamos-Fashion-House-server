@@ -70,15 +70,7 @@ async function run() {
     // all product get
     app.get("/products/all", async (req, res) => {
       try {
-        const {
-          brands,
-          ram,
-          colors,
-          driveSizes,
-          gpuBrands,
-          processors,
-          screenSizes,
-        } = req.query;
+        const { brands, ram, colors, driveSizes, gpuBrands, processors, screenSizes } = req.query;
 
         // Initialize query object
         const query = {};
@@ -161,13 +153,6 @@ async function run() {
     ////////////////////// wishlist Collection ////////////////////////
 
     // wishlist post
-    // app.post("/wishlist/add", async (req, res) => {
-    //   const wishlist = req.body;
-    //   const result = await wishlistCollection.insertOne(wishlist);
-    //   res.send(result);
-    // });
-    // const wishlistCollection = client.db("WishlistDB").collection("Wishlist");
-
     app.post("/wishlist/add", async (req, res) => {
       const { user, product } = req.body;
 
@@ -194,9 +179,7 @@ async function run() {
           }
         }
 
-        res
-          .status(200)
-          .json({ message: "Product added to wishlist", wishlist });
+        res.status(200).json({ message: "Product added to wishlist", wishlist });
       } catch (error) {
         console.error("Error adding product to wishlist:", error);
         res.status(500).json({ error: "Internal Server Error" });
@@ -204,6 +187,50 @@ async function run() {
     });
 
     // wishlist get
+    // GET API to retrieve wishlist for a specific user
+    app.get("/wishlist/:userId", async (req, res) => {
+      const { userId } = req.params; // Extract userId from request parameters
+
+      try {
+        // Find the wishlist for the given userId
+        const wishlist = await wishlistCollection.findOne({ userId: userId });
+
+        if (!wishlist) {
+          return res.status(404).json({ message: "Wishlist not found" });
+        }
+
+        // Return the wishlist with the products
+        res.status(200).json(wishlist);
+      } catch (error) {
+        console.error("Error retrieving wishlist:", error);
+        res.status(500).json({ error: "Internal Server Error" });
+      }
+    });
+
+    // DELETE API to remove a product from the wishlist
+    app.delete("/wishlist/remove", async (req, res) => {
+      const { userId, productId } = req.body; // Receiving userId and productId from the request body
+
+      try {
+        // Find the user's wishlist
+        const wishlist = await wishlistCollection.findOne({ userId });
+
+        if (!wishlist) {
+          return res.status(404).json({ message: "Wishlist not found" });
+        }
+
+        // Filter out the product from the products array
+        const updatedProducts = wishlist.products.filter((product) => product._id !== productId);
+
+        // Update the wishlist with the new products array
+        await wishlistCollection.updateOne({ userId }, { $set: { products: updatedProducts } });
+
+        res.status(200).json({ message: "Product removed from wishlist", updatedProducts });
+      } catch (error) {
+        console.error("Error removing product from wishlist:", error);
+        res.status(500).json({ error: "Internal Server Error" });
+      }
+    });
 
     console.log("You successfully connected to MongoDB!");
   } finally {
