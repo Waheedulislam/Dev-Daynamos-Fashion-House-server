@@ -163,7 +163,7 @@ async function run() {
     // wishlist post
     app.post("/wishlist/add", async (req, res) => {
       const wishlist = req.body;
-      const result = await wishlistCollection.insertOne().toArray(wishlist);
+      const result = await wishlistCollection.insertOne(wishlist);
       res.send(result);
     });
 
