@@ -161,10 +161,48 @@ async function run() {
     ////////////////////// wishlist Collection ////////////////////////
 
     // wishlist post
+    // app.post("/wishlist/add", async (req, res) => {
+    //   const wishlist = req.body;
+    //   const result = await wishlistCollection.insertOne(wishlist);
+    //   res.send(result);
+    // });
     app.post("/wishlist/add", async (req, res) => {
-      const wishlist = req.body;
-      const result = await wishlistCollection.insertOne(wishlist);
-      res.send(result);
+      const { user, product } = req.body;
+      // const wishlistCollection = client.db("WishlistDB").collection("Wishlist");
+      try {
+        // Check if the wishlist for the user already exists
+        let wishlist = await db
+          .collection("WishlistDB")
+          .findOne({ userId: user });
+
+        if (!wishlist) {
+          // If no wishlist exists, create a new one
+          wishlist = {
+            userId: user,
+            products: [product], // Assuming product._id is the product ID
+          };
+          await db.collection("wishlists").insertOne(wishlist);
+        } else {
+          // If wishlist exists, check if the product is already in the wishlist
+          if (!wishlist.products.includes(product)) {
+            // Add the product ID to the wishlist
+            wishlist.products.push(product);
+            await db
+              .collection("wishlists")
+              .updateOne(
+                { userId: user },
+                { $set: { products: wishlist.products } }
+              );
+          }
+        }
+
+        res
+          .status(200)
+          .json({ message: "Product added to wishlist", wishlist });
+      } catch (error) {
+        console.error("Error adding product to wishlist:", error);
+        res.status(500).json({ error: "Internal Server Error" });
+      }
     });
 
     // wishlist get
