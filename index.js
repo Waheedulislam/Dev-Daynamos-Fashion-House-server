@@ -27,6 +27,7 @@ async function run() {
     const usersCollection = client.db("UsersDB").collection("Users");
     const productCollection = client.db("productDB").collection("Products");
     const blogsCollection = client.db("BlogsDB").collection("Blogs");
+    const wishlistCollection = client.db("WishlistDB").collection("Wishlist");
 
     ////////////////////// User Collection ////////////////////////
     // Users Post
@@ -156,6 +157,17 @@ async function run() {
       const result = await blogsCollection.deleteOne({ _id: new ObjectId(id) });
       res.send(result);
     });
+
+    ////////////////////// wishlist Collection ////////////////////////
+
+    // wishlist post
+    app.post("/wishlist/add", async (req, res) => {
+      const wishlist = req.body;
+      const result = await wishlistCollection.insertOne().toArray(wishlist);
+      res.send(result);
+    });
+
+    // wishlist get
 
     console.log("You successfully connected to MongoDB!");
   } finally {
