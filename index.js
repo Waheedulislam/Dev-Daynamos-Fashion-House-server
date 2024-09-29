@@ -70,7 +70,15 @@ async function run() {
     // all product get
     app.get("/products/all", async (req, res) => {
       try {
-        const { brands, ram, colors, driveSizes, gpuBrands, processors, screenSizes } = req.query;
+        const {
+          brands,
+          ram,
+          colors,
+          driveSizes,
+          gpuBrands,
+          processors,
+          screenSizes,
+        } = req.query;
 
         // Initialize query object
         const query = {};
@@ -130,7 +138,7 @@ async function run() {
       res.send(result);
     });
 
-    ////////////////////// blog Collection ////////////////////////
+    ////////////////////// Blog Collection ////////////////////////
 
     // Blogs add
     app.post("/blogs/add", async (req, res) => {
@@ -138,9 +146,16 @@ async function run() {
       const result = await blogsCollection.insertOne(blogs);
       res.send(result);
     });
+
     // Blogs get
     app.get("/blogs/list", async (req, res) => {
       const result = await blogsCollection.find().toArray();
+      res.send(result);
+    });
+    // Blogs single data get
+    app.get("/blogs/details/:id", async (req, res) => {
+      const id = req?.params?.id;
+      const result = await blogsCollection.findOne({ _id: new ObjectId(id) });
       res.send(result);
     });
     // Blogs Delete
@@ -179,7 +194,9 @@ async function run() {
           }
         }
 
-        res.status(200).json({ message: "Product added to wishlist", wishlist });
+        res
+          .status(200)
+          .json({ message: "Product added to wishlist", wishlist });
       } catch (error) {
         console.error("Error adding product to wishlist:", error);
         res.status(500).json({ error: "Internal Server Error" });
@@ -220,12 +237,19 @@ async function run() {
         }
 
         // Filter out the product from the products array
-        const updatedProducts = wishlist.products.filter((product) => product._id !== productId);
+        const updatedProducts = wishlist.products.filter(
+          (product) => product._id !== productId
+        );
 
         // Update the wishlist with the new products array
-        await wishlistCollection.updateOne({ userId }, { $set: { products: updatedProducts } });
+        await wishlistCollection.updateOne(
+          { userId },
+          { $set: { products: updatedProducts } }
+        );
 
-        res.status(200).json({ message: "Product removed from wishlist", updatedProducts });
+        res
+          .status(200)
+          .json({ message: "Product removed from wishlist", updatedProducts });
       } catch (error) {
         console.error("Error removing product from wishlist:", error);
         res.status(500).json({ error: "Internal Server Error" });
