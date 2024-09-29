@@ -166,14 +166,14 @@ async function run() {
     //   const result = await wishlistCollection.insertOne(wishlist);
     //   res.send(result);
     // });
+    // const wishlistCollection = client.db("WishlistDB").collection("Wishlist");
+
     app.post("/wishlist/add", async (req, res) => {
       const { user, product } = req.body;
-      // const wishlistCollection = client.db("WishlistDB").collection("Wishlist");
+
       try {
         // Check if the wishlist for the user already exists
-        let wishlist = await wishlistCollection
-          .collection("Wishlist")
-          .findOne({ userId: user });
+        let wishlist = await wishlistCollection.findOne({ userId: user });
 
         if (!wishlist) {
           // If no wishlist exists, create a new one
@@ -181,18 +181,16 @@ async function run() {
             userId: user,
             products: [product], // Assuming product._id is the product ID
           };
-          await wishlistCollection.collection("Wishlist").insertOne(wishlist);
+          await wishlistCollection.insertOne(wishlist);
         } else {
           // If wishlist exists, check if the product is already in the wishlist
           if (!wishlist.products.includes(product)) {
             // Add the product ID to the wishlist
             wishlist.products.push(product);
-            await wishlistCollection
-              .collection("Wishlist")
-              .updateOne(
-                { userId: user },
-                { $set: { products: wishlist.products } }
-              );
+            await wishlistCollection.updateOne(
+              { userId: user },
+              { $set: { products: wishlist.products } }
+            );
           }
         }
 
