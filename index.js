@@ -148,10 +148,47 @@ async function run() {
     });
 
     // Blogs get
-    app.get("/blogs/list", async (req, res) => {
+    app.get("/blogs/lists", async (req, res) => {
       const result = await blogsCollection.find().toArray();
       res.send(result);
     });
+
+    // Blogs get with pagination and option for all data
+    app.get("/blogs/list", async (req, res) => {
+      try {
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 10;
+        const getAll = req.query.getAll === "true";
+
+        let blogs;
+        let totalBlogs;
+
+        if (getAll) {
+          blogs = await blogsCollection.find().toArray();
+          totalBlogs = blogs.length;
+        } else {
+          const skip = (page - 1) * limit;
+          totalBlogs = await blogsCollection.countDocuments();
+          blogs = await blogsCollection
+            .find()
+            .skip(skip)
+            .limit(limit)
+            .toArray();
+        }
+
+        res.status(200).json({
+          blogs,
+          currentPage: getAll ? 1 : page,
+          totalPages: getAll ? 1 : Math.ceil(totalBlogs / limit),
+          totalBlogs,
+          limit: getAll ? totalBlogs : limit,
+        });
+      } catch (error) {
+        console.error("Error fetching blogs:", error);
+        res.status(500).json({ message: "Error fetching blogs" });
+      }
+    });
+
     // Blogs single data get
     app.get("/blogs/details/:id", async (req, res) => {
       const id = req?.params?.id;
