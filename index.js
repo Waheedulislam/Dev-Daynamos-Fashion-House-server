@@ -29,6 +29,46 @@ async function run() {
     const blogsCollection = client.db("BlogsDB").collection("Blogs");
     const wishlistCollection = client.db("WishlistDB").collection("Wishlist");
 
+    // jwt related api
+    app.post("/jwt", async (req, res) => {
+      const user = req.body;
+      const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, {
+        expiresIn: "7d",
+      });
+      // console.log(token);
+      res.send({ token });
+    });
+    // jwt middleware
+    const verifyToken = (req, res, next) => {
+      // console.log("inside-Token", req.headers.authorization);
+      if (!req.headers.authorization) {
+        return res.status(401).send({ massage: "Unauthorize access" });
+      }
+      const token = req.headers.authorization.split(" ")[1];
+      jwt.verify(
+        token,
+        process.env.ACCESS_TOKEN_SECRET,
+        function (err, decoded) {
+          if (err) {
+            return res.status(401).send({ massage: "Unauthorize access" });
+          }
+          req.decoded = decoded;
+          next();
+        }
+      );
+    };
+    // use verify admin after
+    const verifyAdmin = async (req, res, next) => {
+      const email = req.decoded.email;
+      const query = { email: email };
+      const user = await usersCollection.findOne(query);
+      const isAdmin = user?.role === "admin";
+      if (!isAdmin) {
+        return res.status(403).send({ message: "forbidden access" });
+      }
+      next();
+    };
+
     ////////////////////// User Collection ////////////////////////
     // Users Post
     app.post("/users", async (req, res) => {
@@ -47,30 +87,56 @@ async function run() {
       res.send(result);
     });
     // Users GET
-    app.get("/users", async (req, res) => {
+    app.get("/users", verifyToken, verifyAdmin, async (req, res) => {
       const result = await usersCollection.find().toArray();
 
       res.send(result);
     });
-    // Users Delete
-    app.delete("/users/delete/:id", async (req, res) => {
-      const id = req?.params?.id;
-      const result = await usersCollection.deleteOne({ _id: new ObjectId(id) });
-      res.send(result);
+
+    // admin check
+    app.get("/users/admin/:email", verifyToken, async (req, res) => {
+      const email = req?.params?.email;
+      if (email !== req?.decoded?.email) {
+        return res.status(403).send({ massage: "forbidden access" });
+      }
+      const query = { email: email };
+      const user = await usersCollection.findOne(query);
+      let admin = false;
+      if (user) {
+        admin = user?.role === "admin";
+      }
+      res.send({ admin });
     });
     // Users patch make admin
-    app.patch("/users/admin/:id", async (req, res) => {
-      const id = req?.params?.id;
-      const filter = { _id: new ObjectId(id) };
-      const updatedDoc = {
-        $set: {
-          role: "admin",
-        },
-      };
-      const result = await usersCollection.updateOne(filter, updatedDoc);
-      res.send(result);
-    });
-
+    app.patch(
+      "/users/admin/:id",
+      verifyToken,
+      verifyAdmin,
+      async (req, res) => {
+        const id = req?.params?.id;
+        const filter = { _id: new ObjectId(id) };
+        const updatedDoc = {
+          $set: {
+            role: "admin",
+          },
+        };
+        const result = await usersCollection.updateOne(filter, updatedDoc);
+        res.send(result);
+      }
+    );
+    // Users Delete
+    app.delete(
+      "/users/delete/:id",
+      verifyToken,
+      verifyAdmin,
+      async (req, res) => {
+        const id = req?.params?.id;
+        const result = await usersCollection.deleteOne({
+          _id: new ObjectId(id),
+        });
+        res.send(result);
+      }
+    );
     ////////////////////// Product Collection ////////////////////////
 
     // post all product
