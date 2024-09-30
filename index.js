@@ -232,6 +232,31 @@ async function run() {
       }
     });
 
+
+    ////////////////////////////////////// Payment Collection Start ///////////////////////////
+
+// payment post api 
+app.post('/create-payment', async(req,res) => {
+  const paymentInfo = req.body;
+  console.log(paymentInfo)
+  res.send('result')
+});
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     console.log("You successfully connected to MongoDB!");
   } finally {
     // Ensures that the client will close when you finish/error
