@@ -4,9 +4,7 @@ require("dotenv").config();
 const app = express();
 const jwt = require("jsonwebtoken");
 const port = 5000;
-const { v4: uuidv4 } = require('uuid'); // Import UUID for unique transaction IDs
-
-
+const { v4: uuidv4 } = require("uuid"); // Import UUID for unique transaction IDs
 
 app.use(cors());
 app.use(express.json());
@@ -262,100 +260,105 @@ async function run() {
       }
     });
 
-
     ////////////////////////////////////// Payment Collection Start ///////////////////////////
 
-// payment post api:
-app.post('/create-payment', async(req,res) => {
-  const paymentInfo = req.body;
-  console.log(paymentInfo);
+    // payment post api:
+    app.post("/create-payment", async (req, res) => {
+      const paymentInfo = req.body;
+      console.log(paymentInfo);
 
-  const tran_id = uuidv4();
+      const tran_id = uuidv4();
 
-  const initiateData = {
-  store_id: process.env.SSL_STORE_ID,
-  store_passwd: process.env.SSL_STORE_PASSWORD,
-  total_amount: paymentInfo.amount,
-  currency: "EUR",
-  tran_id: tran_id,
-  success_url: "http://localhost:5000/success-payment",
-  fail_url: "http://yoursite.com/fail.php",
-  cancel_url: "http://yoursite.com/cancel.php",
-  cus_name: "Customer Name",
-  cus_email: "cust@yahoo.com",
-  cus_add1: "Dhaka",
-  cus_add2: "Dhaka",
-  cus_city: "Dhaka",
-  cus_state: "Dhaka",
-  cus_postcode: "1000",
-  cus_country: "Bangladesh",
-  cus_phone: "01711111111",
-  cus_fax: "01711111111",
-  shipping_method: "NO",
-  product_name: "Computer",
-  product_category: "Electronic",
-  product_profile: "general",	
-  multi_card_name: "mastercard,visacard,amexcard",
-  value_a: "ref001_A",
-  value_b: "ref002_B",
-  value_c: "ref003_C",
-  value_d: "ref004_D"
-  };
-  
-  try {
-    const response = await axios({
-      method: 'POST',
-      url: "https://sandbox.sslcommerz.com/gwprocess/v4/api.php",
-      data: initiateData,
-      headers: {'Content-Type': 'application/x-www-form-urlencoded',},
+      const initiateData = {
+        store_id: process.env.SSL_STORE_ID,
+        store_passwd: process.env.SSL_STORE_PASSWORD,
+        total_amount: paymentInfo.amount,
+        currency: "EUR",
+        tran_id: tran_id,
+        success_url: "http://localhost:5000/success-payment",
+        fail_url: "http://yoursite.com/fail.php",
+        cancel_url: "http://yoursite.com/cancel.php",
+        cus_name: "Customer Name",
+        cus_email: "cust@yahoo.com",
+        cus_add1: "Dhaka",
+        cus_add2: "Dhaka",
+        cus_city: "Dhaka",
+        cus_state: "Dhaka",
+        cus_postcode: "1000",
+        cus_country: "Bangladesh",
+        cus_phone: "01711111111",
+        cus_fax: "01711111111",
+        shipping_method: "NO",
+        product_name: "Computer",
+        product_category: "Electronic",
+        product_profile: "general",
+        multi_card_name: "mastercard,visacard,amexcard",
+        value_a: "ref001_A",
+        value_b: "ref002_B",
+        value_c: "ref003_C",
+        value_d: "ref004_D",
+      };
+
+      try {
+        const response = await axios({
+          method: "POST",
+          url: "https://sandbox.sslcommerz.com/gwprocess/v4/api.php",
+          data: initiateData,
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        });
+
+        console.log("response data 313:", response.data);
+
+        // Send Data to The Database
+        const saveData = {
+          userName: "user name",
+          paymentId: tran_id,
+          amount: paymentInfo.amount,
+          status: "Pending",
+        };
+
+        const saveUserInfoInDb = await paymentCollection.insertOne(saveData);
+
+        if (saveUserInfoInDb) {
+          res.send({
+            paymentUrl: response.data.GatewayPageURL,
+          });
+        }
+      } catch (error) {
+        console.error(error);
+      }
+
+      // console.log(response);
+
+      // res.json(response.data);
     });
 
-    console.log('response data 313:' , response.data);
+    // success payment api:
+    app.post("/success-payment", async (req, res) => {
+      const successData = req.body;
+      console.log("success data 307:", successData);
 
-    // Send Data to The Database
-    const saveData = {
-      userName: 'user name',
-      paymentId: tran_id,
-      amount: paymentInfo.amount,
-      status: 'Pending',
-    }
+      if (successData.status !== "VALID") {
+        throw new Error("Unauthorized Payment , Invalid Payment");
+      }
 
-    const saveUserInfoInDb = await paymentCollection.insertOne(saveData);
+      // Update The Database:
+      const query = {
+        paymentId: successData.tran_id,
+      };
 
-    if(saveUserInfoInDb){
-      res.send({
-        paymentUrl: response.data.GatewayPageURL,
-      })
-    }
+      const update = {
+        $set: {
+          status: "Success",
+        },
+      };
 
-  } catch (error) {
-    console.error(error);
-  }
+      const updateData = await paymentCollection.updateOne(query, update);
 
-  // console.log(response);
+      console.log("update data 362: ", updateData);
 
-  // res.json(response.data);
-});
-
-// success payment api:
-app.post('/success-payment', async (req, res) => {
-  const successData = req.body;
-  console.log('success data 307:' , successData);
-  res.json({ message: 'Payment successful', data: successData });
-});
-
-
-
-
-
-
-
-
-
-
-
-
-
+      res.json({ message: "Payment successful", data: successData });
+    });
 
     console.log("You successfully connected to MongoDB!");
   } finally {
@@ -373,5 +376,3 @@ app.listen(port, () => {
   console.log(`App listening on port ${port}`);
 });
 
-// userName= infotechheim
-// pass = HDWydNQvMfOfQL2L
