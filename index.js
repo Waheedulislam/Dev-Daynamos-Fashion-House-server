@@ -27,6 +27,7 @@ async function run() {
     const usersCollection = client.db("UsersDB").collection("Users");
     const productCollection = client.db("productDB").collection("Products");
     const blogsCollection = client.db("BlogsDB").collection("Blogs");
+    const wishlistCollection = client.db("WishlistDB").collection("Wishlist");
 
     ////////////////////// User Collection ////////////////////////
     // Users Post
@@ -137,7 +138,7 @@ async function run() {
       res.send(result);
     });
 
-    ////////////////////// blog Collection ////////////////////////
+    ////////////////////// Blog Collection ////////////////////////
 
     // Blogs add
     app.post("/blogs/add", async (req, res) => {
@@ -145,9 +146,16 @@ async function run() {
       const result = await blogsCollection.insertOne(blogs);
       res.send(result);
     });
+
     // Blogs get
     app.get("/blogs/list", async (req, res) => {
       const result = await blogsCollection.find().toArray();
+      res.send(result);
+    });
+    // Blogs single data get
+    app.get("/blogs/details/:id", async (req, res) => {
+      const id = req?.params?.id;
+      const result = await blogsCollection.findOne({ _id: new ObjectId(id) });
       res.send(result);
     });
     // Blogs Delete
@@ -155,6 +163,97 @@ async function run() {
       const id = req.params.id;
       const result = await blogsCollection.deleteOne({ _id: new ObjectId(id) });
       res.send(result);
+    });
+
+    ////////////////////// wishlist Collection ////////////////////////
+
+    // wishlist post
+    app.post("/wishlist/add", async (req, res) => {
+      const { user, product } = req.body;
+
+      try {
+        // Check if the wishlist for the user already exists
+        let wishlist = await wishlistCollection.findOne({ userId: user });
+
+        if (!wishlist) {
+          // If no wishlist exists, create a new one
+          wishlist = {
+            userId: user,
+            products: [product], // Assuming product._id is the product ID
+          };
+          await wishlistCollection.insertOne(wishlist);
+        } else {
+          // If wishlist exists, check if the product is already in the wishlist
+          if (!wishlist.products.includes(product)) {
+            // Add the product ID to the wishlist
+            wishlist.products.push(product);
+            await wishlistCollection.updateOne(
+              { userId: user },
+              { $set: { products: wishlist.products } }
+            );
+          }
+        }
+
+        res
+          .status(200)
+          .json({ message: "Product added to wishlist", wishlist });
+      } catch (error) {
+        console.error("Error adding product to wishlist:", error);
+        res.status(500).json({ error: "Internal Server Error" });
+      }
+    });
+
+    // wishlist get
+    // GET API to retrieve wishlist for a specific user
+    app.get("/wishlist/:userId", async (req, res) => {
+      const { userId } = req.params; // Extract userId from request parameters
+
+      try {
+        // Find the wishlist for the given userId
+        const wishlist = await wishlistCollection.findOne({ userId: userId });
+
+        if (!wishlist) {
+          return res.status(404).json({ message: "Wishlist not found" });
+        }
+
+        // Return the wishlist with the products
+        res.status(200).json(wishlist);
+      } catch (error) {
+        console.error("Error retrieving wishlist:", error);
+        res.status(500).json({ error: "Internal Server Error" });
+      }
+    });
+
+    // DELETE API to remove a product from the wishlist
+    app.delete("/wishlist/remove", async (req, res) => {
+      const { userId, productId } = req.body; // Receiving userId and productId from the request body
+
+      try {
+        // Find the user's wishlist
+        const wishlist = await wishlistCollection.findOne({ userId });
+
+        if (!wishlist) {
+          return res.status(404).json({ message: "Wishlist not found" });
+        }
+
+        // Filter out the product from the products array
+        const updatedProducts = wishlist.products.filter(
+          (product) => product._id !== productId
+        );
+
+        // Update the wishlist with the new products array
+        await wishlistCollection.updateOne(
+          { userId },
+          { $set: { products: updatedProducts } }
+        );
+
+        res
+          .status(200)
+          .json({ message: "Product removed from wishlist", updatedProducts });
+      } catch (error) {
+        console.error("Error removing product from wishlist:", error);
+        res.status(500).json({ error: "Internal Server Error" });
+      }
     });
 
     console.log("You successfully connected to MongoDB!");
