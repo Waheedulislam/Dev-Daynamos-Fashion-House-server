@@ -4,9 +4,12 @@ require("dotenv").config();
 const app = express();
 const jwt = require("jsonwebtoken");
 const port = 5000;
+const { v4: uuidv4 } = require('uuid');
+const axios = require('axios');
 
 app.use(cors());
 app.use(express.json());
+app.use(express.urlencoded({ extended: true })); // To parse URL-encoded bodies
 
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.cn4db.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
@@ -29,6 +32,7 @@ async function run() {
     const blogsCollection = client.db("BlogsDB").collection("Blogs");
     const wishlistCollection = client.db("WishlistDB").collection("Wishlist");
     const cartCollection = client.db("CartListDB").collection("carts");
+    const paymentCollection = client.db('paymentDB').collection("payment");
 
     // jwt related api
     app.post("/jwt", async (req, res) => {
