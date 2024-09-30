@@ -28,6 +28,7 @@ async function run() {
     const productCollection = client.db("productDB").collection("Products");
     const blogsCollection = client.db("BlogsDB").collection("Blogs");
     const wishlistCollection = client.db("WishlistDB").collection("Wishlist");
+    const cartCollection = client.db("CartListDB").collection("carts");
 
     ////////////////////// User Collection ////////////////////////
     // Users Post
@@ -229,6 +230,119 @@ async function run() {
       } catch (error) {
         console.error("Error removing product from wishlist:", error);
         res.status(500).json({ error: "Internal Server Error" });
+      }
+    });
+
+    ////////////////////// cart Collection ////////////////////////
+
+    // Add product to cart
+    app.post("/cart/add", async (req, res) => {
+      const { userEmail, product } = req.body; // Accept full product object in request
+
+      try {
+        // Find the user's cart
+        let userCart = await cartCollection.findOne({ userEmail });
+
+        if (userCart) {
+          // Check if the product is already in the cart
+          const productExists = userCart.products.find((p) => p.product._id === product._id);
+
+          if (productExists) {
+            // If product exists, return a message
+            res.status(200).json({ message: "Product already in cart" });
+          } else {
+            // Add the new product to the cart
+            await cartCollection.updateOne(
+              { userEmail },
+              { $push: { products: { product, quantity: 1 } } } // Store the full product object
+            );
+            res.status(200).json({ message: "Product added to cart" });
+          }
+        } else {
+          // If no cart exists, create a new one for the user
+          await cartCollection.insertOne({
+            userEmail,
+            products: [{ product, quantity: 1 }], // Store full product object
+          });
+          res.status(201).json({ message: "Cart created and product added" });
+        }
+      } catch (error) {
+        console.error("Error adding to cart:", error);
+        res.status(500).json({ error: "Failed to add product to cart" });
+      }
+    });
+
+    // Get user's cart with total price calculation
+    app.get("/cart/:userEmail", async (req, res) => {
+      const { userEmail } = req.params;
+    
+      try {
+        // Find the user's cart
+        const userCart = await cartCollection.findOne({ userEmail });
+    
+        if (userCart) {
+          const products = userCart.products || []; // Default to an empty array if products is undefined
+    
+          // Calculate total price
+          const totalPrice = products.reduce((total, item) => {
+            const productPrice = item.product.sellPrice
+              ? parseFloat(item.product.sellPrice)
+              : parseFloat(item.product.regularPrice);
+            return total + productPrice * item.quantity;
+          }, 0);
+    
+          // Return cart details and total price
+          res.status(200).json({
+            cart: products,
+            totalPrice: totalPrice.toFixed(2), // Rounding to two decimal places
+          });
+        } else {
+          // If no cart is found, return empty cart and total price as 0.00
+          res.status(200).json({
+            cart: [],
+            totalPrice: "0.00",
+          });
+        }
+      } catch (error) {
+        console.error("Error fetching cart:", error);
+        res.status(500).json({ error: "Failed to fetch cart" });
+      }
+    });
+    
+
+    // Delete user's product from cart
+    
+    app.delete("/cart/delete", async (req, res) => {
+      const { userEmail, productId } = req.body; // Expecting userEmail and productId in the request body
+
+      try {
+        // Find the user's cart
+        const cart = await cartCollection.findOne({ userEmail });
+
+        if (!cart) {
+          return res.status(404).json({ message: "Cart not found" });
+        }
+
+        // Filter out the product from the products array
+        const updatedProducts = cart.products.filter((item) => item.product._id !== productId);
+
+        // Update the cart with the new products array
+        const updateResult = await cartCollection.updateOne(
+          { userEmail },
+          { $set: { products: updatedProducts } }
+        );
+
+        if (updateResult.modifiedCount > 0) {
+          res.status(200).json({
+            message: "Product removed from cart",
+            updatedCart: updatedProducts,
+          });
+        } else {
+          res.status(404).json({ message: "Product not found in cart" });
+        }
+      } catch (error) {
+        console.error("Error removing product from cart:", error);
+        res.status(500).json({ error: "Failed to remove product from cart" });
       }
     });
 
