@@ -146,13 +146,6 @@ async function run() {
       const result = await productCollection.insertOne(products);
       res.send(result);
     });
-    // get all products
-    // app.get("/products/all", async (req, res) => {
-    //   const result = await productCollection.find().toArray();
-    //   res.send(result);
-    // });
-
-    // all product get
     app.get("/products/all", async (req, res) => {
       try {
         const {
