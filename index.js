@@ -515,9 +515,9 @@ app.post("/create-payment", async (req, res) => {
     total_amount: paymentInfo.amount,
     currency: "EUR",
     tran_id: tran_id,
-    success_url: "http://localhost:5000/success-payment",
-    fail_url: "http://yoursite.com/fail.php",
-    cancel_url: "http://yoursite.com/cancel.php",
+    success_url: "http://localhost:5000/payment-success",
+    fail_url: "http://localhost:5000/payment-fail",
+    cancel_url: "http://localhost:5000/payment-cancel",
     cus_name: "Customer Name",
     cus_email: "cust@yahoo.com",
     cus_add1: "Dhaka",
@@ -574,7 +574,7 @@ app.post("/create-payment", async (req, res) => {
 });
 
 // success payment api:
-app.post("/success-payment", async (req, res) => {
+app.post("/payment-success", async (req, res) => {
   const successData = req.body;
   console.log("success data 307:", successData);
 
@@ -597,7 +597,25 @@ app.post("/success-payment", async (req, res) => {
 
   console.log("update data 362: ", updateData);
 
+  if(updateData){
+    res.redirect("http://localhost:5173/payment-success")
+  }
+
   res.json({ message: "Payment successful", data: successData });
+});
+
+
+// payment cancel api:
+app.post("/payment-cancel", async (req, res) => {
+  
+    res.redirect("http://localhost:5173/payment-cancel"); 
+});
+
+
+// payment fail api:
+app.post("/payment-fail", async (req, res) => {
+
+    res.redirect("http://localhost:5173/payment-fail"); 
 });
 
 
