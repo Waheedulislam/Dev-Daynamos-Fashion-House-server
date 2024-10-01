@@ -4,9 +4,12 @@ require("dotenv").config();
 const app = express();
 const jwt = require("jsonwebtoken");
 const port = 5000;
+const { v4: uuidv4 } = require('uuid');
+const axios = require('axios');
 
 app.use(cors());
 app.use(express.json());
+app.use(express.urlencoded({ extended: true })); // To parse URL-encoded bodies
 
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.cn4db.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
@@ -29,6 +32,47 @@ async function run() {
     const blogsCollection = client.db("BlogsDB").collection("Blogs");
     const wishlistCollection = client.db("WishlistDB").collection("Wishlist");
     const cartCollection = client.db("CartListDB").collection("carts");
+    const paymentCollection = client.db('paymentDB').collection("payment");
+
+    // jwt related api
+    app.post("/jwt", async (req, res) => {
+      const user = req.body;
+      const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, {
+        expiresIn: "7d",
+      });
+      // console.log(token);
+      res.send({ token });
+    });
+    // jwt middleware
+    const verifyToken = (req, res, next) => {
+      // console.log("inside-Token", req.headers.authorization);
+      if (!req.headers.authorization) {
+        return res.status(401).send({ massage: "Unauthorize access" });
+      }
+      const token = req.headers.authorization.split(" ")[1];
+      jwt.verify(
+        token,
+        process.env.ACCESS_TOKEN_SECRET,
+        function (err, decoded) {
+          if (err) {
+            return res.status(401).send({ massage: "Unauthorize access" });
+          }
+          req.decoded = decoded;
+          next();
+        }
+      );
+    };
+    // use verify admin after
+    const verifyAdmin = async (req, res, next) => {
+      const email = req.decoded.email;
+      const query = { email: email };
+      const user = await usersCollection.findOne(query);
+      const isAdmin = user?.role === "admin";
+      if (!isAdmin) {
+        return res.status(403).send({ message: "forbidden access" });
+      }
+      next();
+    };
 
     ////////////////////// User Collection ////////////////////////
     // Users Post
@@ -48,12 +92,56 @@ async function run() {
       res.send(result);
     });
     // Users GET
-    app.get("/users", async (req, res) => {
+    app.get("/users", verifyToken, verifyAdmin, async (req, res) => {
       const result = await usersCollection.find().toArray();
 
       res.send(result);
     });
 
+    // admin check
+    app.get("/users/admin/:email", verifyToken, async (req, res) => {
+      const email = req?.params?.email;
+      if (email !== req?.decoded?.email) {
+        return res.status(403).send({ massage: "forbidden access" });
+      }
+      const query = { email: email };
+      const user = await usersCollection.findOne(query);
+      let admin = false;
+      if (user) {
+        admin = user?.role === "admin";
+      }
+      res.send({ admin });
+    });
+    // Users patch make admin
+    app.patch(
+      "/users/admin/:id",
+      verifyToken,
+      verifyAdmin,
+      async (req, res) => {
+        const id = req?.params?.id;
+        const filter = { _id: new ObjectId(id) };
+        const updatedDoc = {
+          $set: {
+            role: "admin",
+          },
+        };
+        const result = await usersCollection.updateOne(filter, updatedDoc);
+        res.send(result);
+      }
+    );
+    // Users Delete
+    app.delete(
+      "/users/delete/:id",
+      verifyToken,
+      verifyAdmin,
+      async (req, res) => {
+        const id = req?.params?.id;
+        const result = await usersCollection.deleteOne({
+          _id: new ObjectId(id),
+        });
+        res.send(result);
+      }
+    );
     ////////////////////// Product Collection ////////////////////////
 
     // post all product
@@ -285,7 +373,9 @@ async function run() {
 
         if (userCart) {
           // Check if the product is already in the cart
-          const productExists = userCart.products.find((p) => p.product._id === product._id);
+          const productExists = userCart.products.find(
+            (p) => p.product._id === product._id
+          );
 
           if (productExists) {
             // If product exists, return a message
@@ -363,7 +453,9 @@ async function run() {
         }
 
         // Filter out the product from the products array
-        const updatedProducts = cart.products.filter((item) => item.product._id !== productId);
+        const updatedProducts = cart.products.filter(
+          (item) => item.product._id !== productId
+        );
 
         // Update the cart with the new products array
         const updateResult = await cartCollection.updateOne(
@@ -429,6 +521,119 @@ async function run() {
         res.status(500).json({ error: "Failed to update quantity" });
       }
     });
+
+
+    ////////////////////// Payment Collection Start ////////////////////////
+
+// payment post api:
+app.post("/create-payment", async (req, res) => {
+  const paymentInfo = req.body;
+  console.log(paymentInfo);
+
+  const tran_id = uuidv4();
+
+  const initiateData = {
+    store_id: process.env.SSL_STORE_ID,
+    store_passwd: process.env.SSL_STORE_PASSWORD,
+    total_amount: paymentInfo.amount,
+    currency: "EUR",
+    tran_id: tran_id,
+    success_url: "http://localhost:5000/success-payment",
+    fail_url: "http://yoursite.com/fail.php",
+    cancel_url: "http://yoursite.com/cancel.php",
+    cus_name: "Customer Name",
+    cus_email: "cust@yahoo.com",
+    cus_add1: "Dhaka",
+    cus_add2: "Dhaka",
+    cus_city: "Dhaka",
+    cus_state: "Dhaka",
+    cus_postcode: "1000",
+    cus_country: "Bangladesh",
+    cus_phone: "01711111111",
+    cus_fax: "01711111111",
+    shipping_method: "NO",
+    product_name: "Computer",
+    product_category: "Electronic",
+    product_profile: "general",
+    multi_card_name: "mastercard,visacard,amexcard",
+    value_a: "ref001_A",
+    value_b: "ref002_B",
+    value_c: "ref003_C",
+    value_d: "ref004_D",
+  };
+
+  try {
+    const response = await axios({
+      method: "POST",
+      url: "https://sandbox.sslcommerz.com/gwprocess/v4/api.php",
+      data: initiateData,
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    });
+
+    console.log("response data 313:", response.data);
+
+    // Send Data to The Database
+    const saveData = {
+      userName: "user name",
+      paymentId: tran_id,
+      amount: paymentInfo.amount,
+      status: "Pending",
+    };
+
+    const saveUserInfoInDb = await paymentCollection.insertOne(saveData);
+
+    if (saveUserInfoInDb) {
+      res.send({
+        paymentUrl: response.data.GatewayPageURL,
+      });
+    }
+  } catch (error) {
+    console.error(error);
+  }
+
+  // console.log(response);
+
+  // res.json(response.data);
+});
+
+// success payment api:
+app.post("/success-payment", async (req, res) => {
+  const successData = req.body;
+  console.log("success data 307:", successData);
+
+  if (successData.status !== "VALID") {
+    throw new Error("Unauthorized Payment , Invalid Payment");
+  }
+
+  // Update The Database:
+  const query = {
+    paymentId: successData.tran_id,
+  };
+
+  const update = {
+    $set: {
+      status: "Success",
+    },
+  };
+
+  const updateData = await paymentCollection.updateOne(query, update);
+
+  console.log("update data 362: ", updateData);
+
+  res.json({ message: "Payment successful", data: successData });
+});
+
+
+
+
+
+
+
+
+
+
+  
+    ////////////////////// Payment Collection End ////////////////////////
 
     console.log("You successfully connected to MongoDB!");
   } finally {
