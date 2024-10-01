@@ -71,15 +71,7 @@ async function run() {
     // all product get
     app.get("/products/all", async (req, res) => {
       try {
-        const {
-          brands,
-          ram,
-          colors,
-          driveSizes,
-          gpuBrands,
-          processors,
-          screenSizes,
-        } = req.query;
+        const { brands, ram, colors, driveSizes, gpuBrands, processors, screenSizes } = req.query;
 
         // Initialize query object
         const query = {};
@@ -170,11 +162,7 @@ async function run() {
         } else {
           const skip = (page - 1) * limit;
           totalBlogs = await blogsCollection.countDocuments();
-          blogs = await blogsCollection
-            .find()
-            .skip(skip)
-            .limit(limit)
-            .toArray();
+          blogs = await blogsCollection.find().skip(skip).limit(limit).toArray();
         }
 
         res.status(200).json({
@@ -232,9 +220,7 @@ async function run() {
           }
         }
 
-        res
-          .status(200)
-          .json({ message: "Product added to wishlist", wishlist });
+        res.status(200).json({ message: "Product added to wishlist", wishlist });
       } catch (error) {
         console.error("Error adding product to wishlist:", error);
         res.status(500).json({ error: "Internal Server Error" });
@@ -275,19 +261,12 @@ async function run() {
         }
 
         // Filter out the product from the products array
-        const updatedProducts = wishlist.products.filter(
-          (product) => product._id !== productId
-        );
+        const updatedProducts = wishlist.products.filter((product) => product._id !== productId);
 
         // Update the wishlist with the new products array
-        await wishlistCollection.updateOne(
-          { userId },
-          { $set: { products: updatedProducts } }
-        );
+        await wishlistCollection.updateOne({ userId }, { $set: { products: updatedProducts } });
 
-        res
-          .status(200)
-          .json({ message: "Product removed from wishlist", updatedProducts });
+        res.status(200).json({ message: "Product removed from wishlist", updatedProducts });
       } catch (error) {
         console.error("Error removing product from wishlist:", error);
         res.status(500).json({ error: "Internal Server Error" });
@@ -336,14 +315,14 @@ async function run() {
     // Get user's cart with total price calculation
     app.get("/cart/:userEmail", async (req, res) => {
       const { userEmail } = req.params;
-    
+
       try {
         // Find the user's cart
         const userCart = await cartCollection.findOne({ userEmail });
-    
+
         if (userCart) {
           const products = userCart.products || []; // Default to an empty array if products is undefined
-    
+
           // Calculate total price
           const totalPrice = products.reduce((total, item) => {
             const productPrice = item.product.sellPrice
@@ -351,7 +330,7 @@ async function run() {
               : parseFloat(item.product.regularPrice);
             return total + productPrice * item.quantity;
           }, 0);
-    
+
           // Return cart details and total price
           res.status(200).json({
             cart: products,
@@ -369,10 +348,9 @@ async function run() {
         res.status(500).json({ error: "Failed to fetch cart" });
       }
     });
-    
 
     // Delete user's product from cart
-    
+
     app.delete("/cart/delete", async (req, res) => {
       const { userEmail, productId } = req.body; // Expecting userEmail and productId in the request body
 
@@ -404,6 +382,51 @@ async function run() {
       } catch (error) {
         console.error("Error removing product from cart:", error);
         res.status(500).json({ error: "Failed to remove product from cart" });
+      }
+    });
+
+    // Update product quantity in the cart
+    app.put("/cart/update-quantity", async (req, res) => {
+      const { userEmail, productId, action } = req.body; // Expecting action to be either "increase" or "decrease"
+
+      try {
+        let updateQuery;
+
+        if (action === "increase") {
+          updateQuery = { $inc: { "products.$.quantity": 1 } };
+        } else if (action === "decrease") {
+          updateQuery = { $inc: { "products.$.quantity": -1 } };
+        } else {
+          return res.status(400).json({ message: "Invalid action" });
+        }
+
+        // Update quantity
+        const result = await cartCollection.updateOne(
+          { userEmail, "products.product._id": productId },
+          updateQuery
+        );
+
+        if (result.modifiedCount > 0) {
+          // Check if quantity is now 0 and remove the product if it is
+          const updatedCart = await cartCollection.findOne({ userEmail });
+          const product = updatedCart.products.find((p) => p.product._id === productId);
+
+          if (product && product.quantity <= 0) {
+            await cartCollection.updateOne(
+              { userEmail },
+              { $pull: { products: { "product._id": productId } } }
+            );
+          }
+
+          res
+            .status(200)
+            .json({ message: `Quantity ${action === "increase" ? "increased" : "decreased"}` });
+        } else {
+          res.status(404).json({ message: "Product not found in cart" });
+        }
+      } catch (error) {
+        console.error(`Error updating quantity:`, error);
+        res.status(500).json({ error: "Failed to update quantity" });
       }
     });
 
