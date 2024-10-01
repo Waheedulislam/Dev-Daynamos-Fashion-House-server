@@ -623,8 +623,33 @@ app.post("/payment-cancel", async (req, res) => {
 
 // payment fail api:
 app.post("/payment-fail", async (req, res) => {
+  try {
+    const failData = req.body;
+    console.log("fail data:", failData);
 
-    res.redirect("http://localhost:5173/payment-fail"); 
+    // Update the database to mark payment as failed
+    const query = { paymentId: failData.tran_id };
+    const update = { 
+      $set: {
+        status: "Failed",
+        paymentType: failData.card_type || "N/A", // Set to "N/A" if no card type is available
+      } 
+    };
+
+    const result = await paymentCollection.updateOne(query, update);
+
+    // If the update was successful, redirect the user to the failed page
+    if (result.modifiedCount === 1) {
+      return res.redirect('http://localhost:5173/payment-fail');
+    } else {
+      // If the update failed, return a failure response
+      return res.status(400).json({ message: "Payment status update failed" });
+    }
+
+  } catch (error) {
+    console.error("Error updating payment status to Failed:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
 });
 
 
