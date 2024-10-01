@@ -551,7 +551,10 @@ app.post("/create-payment", async (req, res) => {
 
     // Send Data to The Database
     const saveData = {
-      userName: "user name",
+      paymentType: response.data.card_brand,
+      paymentIssuer: response.data.card_issuer,
+      customerName: "user name",
+      customerEmail: "user email",
       paymentId: tran_id,
       amount: paymentInfo.amount,
       status: "Pending",
@@ -575,33 +578,39 @@ app.post("/create-payment", async (req, res) => {
 
 // success payment api:
 app.post("/payment-success", async (req, res) => {
-  const successData = req.body;
-  console.log("success data 307:", successData);
+  try {
+    const successData = req.body;
+    console.log("success data 307:", successData);
 
-  if (successData.status !== "VALID") {
-    throw new Error("Unauthorized Payment , Invalid Payment");
+    // Check if payment status is not valid
+    if (successData.status !== "VALID") {
+      return res.status(401).json({ message: "Unauthorized Payment, Invalid Payment" });
+    }
+
+    // Update The Database:
+    const query = { paymentId: successData.tran_id };
+    const update = { 
+      $set: {
+        status: "Success",
+        paymentType: successData.card_brand,
+        paymentIssuer: successData.card_issuer,
+      } 
+    };
+
+    const result = await paymentCollection.updateOne(query, update);
+
+    // If the update was successful, redirect the user to the success page
+    if (result.modifiedCount === 1) {
+      return res.redirect('http://localhost:5173/payment-success');
+    } else {
+      // If the update failed, return a failure response
+      return res.status(400).json({ message: "Payment update failed" });
+    }
+
+  } catch (error) {
+    console.error("Error updating payment status:", error);
+    return res.status(500).json({ message: "Internal server error" });
   }
-
-  // Update The Database:
-  const query = {
-    paymentId: successData.tran_id,
-  };
-
-  const update = {
-    $set: {
-      status: "Success",
-    },
-  };
-
-  const updateData = await paymentCollection.updateOne(query, update);
-
-  console.log("update data 362: ", updateData);
-
-  if(updateData){
-    res.redirect("http://localhost:5173/payment-success")
-  }
-
-  res.json({ message: "Payment successful", data: successData });
 });
 
 
