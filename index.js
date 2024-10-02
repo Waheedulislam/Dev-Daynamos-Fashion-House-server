@@ -504,22 +504,22 @@ async function run() {
 
 // payment post api:
 app.post("/create-payment", async (req, res) => {
-  const paymentInfo = req.body;
-  console.log(paymentInfo);
+  const { cart, totalPrice, userName, userEmail } = req.body;
+  console.log('create payment 508:' , cart, totalPrice, userName, userEmail);
 
   const tran_id = uuidv4();
 
   const initiateData = {
     store_id: process.env.SSL_STORE_ID,
     store_passwd: process.env.SSL_STORE_PASSWORD,
-    total_amount: paymentInfo.amount,
+    total_amount: totalPrice,
     currency: "EUR",
     tran_id: tran_id,
     success_url: "http://localhost:5000/payment-success",
     fail_url: "http://localhost:5000/payment-fail",
     cancel_url: "http://localhost:5000/payment-cancel",
-    cus_name: "Customer Name",
-    cus_email: "cust@yahoo.com",
+    cus_name: userName,
+    cus_email: userEmail,
     cus_add1: "Dhaka",
     cus_add2: "Dhaka",
     cus_city: "Dhaka",
@@ -553,11 +553,12 @@ app.post("/create-payment", async (req, res) => {
     const saveData = {
       paymentType: response.data.card_brand,
       paymentIssuer: response.data.card_issuer,
-      customerName: "user name",
-      customerEmail: "user email",
+      customerName: userName,
+      customerEmail: userEmail,
       paymentId: tran_id,
-      amount: paymentInfo.amount,
+      amount: totalPrice,
       status: "Pending",
+      cart: cart // Store the entire cart array in the database
     };
 
     const saveUserInfoInDb = await paymentCollection.insertOne(saveData);
