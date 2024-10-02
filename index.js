@@ -522,6 +522,17 @@ async function run() {
       }
     });
 
+     // Endpoint to clear the cart for a user
+  app.post('/api/cart/clear/:userEmail', async (req, res) => {
+    try {
+      const { userEmail } = req.params;
+      await cartCollection.updateOne({ userEmail }, { $set: { products: [] } });
+      res.status(200).json({ message: 'Cart cleared successfully' });
+    } catch (error) {
+      res.status(500).json({ message: 'Error clearing cart' });
+    }
+  });
+
 
     ////////////////////// Payment Collection Start ////////////////////////
 
