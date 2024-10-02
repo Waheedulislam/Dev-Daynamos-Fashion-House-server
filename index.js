@@ -502,23 +502,22 @@ async function run() {
 
     ////////////////////// Payment Collection Start ////////////////////////
 
-// payment post api:
+// Payment post API
 app.post("/create-payment", async (req, res) => {
-  const { cart, totalPrice, userName, userEmail } = req.body;
-  console.log('create payment 508:' , cart, totalPrice, userName, userEmail);
-
-  const tran_id = uuidv4();
+  const paymentInfo = req.body;
+  const tran_id = uuidv4(); // Generates a unique transaction ID
+  const userEmail = paymentInfo.userEmail;
 
   const initiateData = {
     store_id: process.env.SSL_STORE_ID,
     store_passwd: process.env.SSL_STORE_PASSWORD,
-    total_amount: totalPrice,
+    total_amount: paymentInfo.totalPrice,
     currency: "EUR",
     tran_id: tran_id,
     success_url: "http://localhost:5000/payment-success",
     fail_url: "http://localhost:5000/payment-fail",
     cancel_url: "http://localhost:5000/payment-cancel",
-    cus_name: userName,
+    cus_name: paymentInfo.userName,
     cus_email: userEmail,
     cus_add1: "Dhaka",
     cus_add2: "Dhaka",
@@ -540,42 +539,63 @@ app.post("/create-payment", async (req, res) => {
   };
 
   try {
+    // Initiate the payment request to SSLCommerz
     const response = await axios({
       method: "POST",
       url: "https://sandbox.sslcommerz.com/gwprocess/v4/api.php",
       data: initiateData,
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      headers: { "Content-Type": "application/x-www-form-urlencoded" }
     });
 
-    console.log("response data 313:", response.data);
-
-    // Send Data to The Database
-    const saveData = {
-      paymentType: response.data.card_brand,
-      paymentIssuer: response.data.card_issuer,
-      customerName: userName,
-      customerEmail: userEmail,
-      paymentId: tran_id,
-      amount: totalPrice,
-      status: "Pending",
-      cart: cart // Store the entire cart array in the database
+    const newPayment = {
+      paymentType: response.data.card_brand || 'N/A',
+      paymentIssuer: response.data.card_issuer || null,
+      customerName: paymentInfo.userName || "Unknown",
+      customerEmail: paymentInfo.userEmail,
+      paymentId: tran_id, // Use the same tran_id for payment success query
+      amount: paymentInfo.totalPrice,
+      status: "Pending", // Payment status is pending until confirmed
+      timestamp: new Date(),
+      cart: paymentInfo.cart || []
     };
 
-    const saveUserInfoInDb = await paymentCollection.insertOne(saveData);
+    const existingUser = await paymentCollection.findOne({ customerEmail: userEmail });
 
-    if (saveUserInfoInDb) {
-      res.send({
-        paymentUrl: response.data.GatewayPageURL,
-      });
+    if (existingUser) {
+      const updateResult = await paymentCollection.updateOne(
+        { customerEmail: userEmail },
+        { $push: { userPayment: newPayment } }
+      );
+
+      if (updateResult.matchedCount === 0 || updateResult.modifiedCount === 0) {
+        console.error("Payment update failed for existing user.");
+        return res.status(500).send("Payment update failed");
+      }
+    } else {
+      const newUser = {
+        customerEmail: userEmail,
+        userPayment: [newPayment]
+      };
+
+      const insertResult = await paymentCollection.insertOne(newUser);
+
+      if (!insertResult.acknowledged) {
+        console.error("Failed to insert new user");
+        return res.status(500).send("Failed to insert new user");
+      }
     }
+
+    res.send({
+      paymentUrl: response.data.GatewayPageURL,
+    });
+
   } catch (error) {
-    console.error(error);
+    console.error("Error creating payment:", error);
+    res.status(500).send("Payment creation failed");
   }
-
-  // console.log(response);
-
-  // res.json(response.data);
 });
+
+
 
 // success payment api:
 app.post("/payment-success", async (req, res) => {
@@ -583,28 +603,31 @@ app.post("/payment-success", async (req, res) => {
     const successData = req.body;
     console.log("success data 307:", successData);
 
-    // Check if payment status is not valid
+    // Check if payment status is valid
     if (successData.status !== "VALID") {
       return res.status(401).json({ message: "Unauthorized Payment, Invalid Payment" });
     }
 
-    // Update The Database:
-    const query = { paymentId: successData.tran_id };
+    // Log transaction ID to make sure it exists
+    console.log("Transaction ID:", successData.tran_id);
+
+    // Update the database with payment success details
+    const query = { "userPayment.paymentId": successData.tran_id }; // Update based on paymentId
     const update = { 
       $set: {
-        status: "Success",
-        paymentType: successData.card_brand,
-        paymentIssuer: successData.card_issuer,
-      } 
+        "userPayment.$.status": "Success", // Update the specific payment
+        "userPayment.$.paymentType": successData.card_brand,
+        "userPayment.$.paymentIssuer": successData.card_issuer,
+      }
     };
 
     const result = await paymentCollection.updateOne(query, update);
 
-    // If the update was successful, redirect the user to the success page
+    // Check if the update was successful
     if (result.modifiedCount === 1) {
       return res.redirect('http://localhost:5173/payment-success');
     } else {
-      // If the update failed, return a failure response
+      console.error("Payment update failed. Result:", result);
       return res.status(400).json({ message: "Payment update failed" });
     }
 
@@ -619,25 +642,41 @@ app.post("/payment-success", async (req, res) => {
 app.post("/payment-cancel", async (req, res) => {
   try {
     const cancelData = req.body;
+    console.log("Cancel Data Received:", cancelData); // Log the received data for debugging
 
-    // Query the database for the canceled transaction
-    const query = { paymentId: cancelData.tran_id };
+    // Ensure the transaction ID (tran_id) exists
+    if (!cancelData.tran_id) {
+      return res.status(400).json({ message: "Transaction ID is missing" });
+    }
 
-    // Update the payment status to 'cancel' in the database
+    // Query the database to find the transaction in the userPayment array
+    const query = { "userPayment.paymentId": cancelData.tran_id }; // Match paymentId inside the userPayment array
+
+    // Update the payment status to 'Cancel' in the database
     const update = {
       $set: {
-        status: "Cancel",
-        paymentType: cancelData.card_type || "N/A", // Handle card type if available
+        "userPayment.$.status": "Cancel", // Update the specific payment status
+        "userPayment.$.paymentType": cancelData.card_type || "N/A", // Set card type if available
       }
     };
 
+    // Log query and update for debugging purposes
+    console.log("Query:", query);
+    console.log("Update:", update);
+
     const result = await paymentCollection.updateOne(query, update);
 
-    // If the update was successful, redirect the user to the cancel page
+    // Check if the update modified any documents
+    if (result.matchedCount === 0) {
+      console.error("No matching payment found for the transaction ID:", cancelData.tran_id);
+      return res.status(404).json({ message: "No matching payment found" });
+    }
+
     if (result.modifiedCount === 1) {
+      // Payment update successful, redirect to the cancel page
       return res.redirect('http://localhost:5173/payment-cancel');
     } else {
-      // If the update failed, return a failure response
+      console.error("Payment update failed, document was not modified.");
       return res.status(400).json({ message: "Payment status update failed" });
     }
 
@@ -648,28 +687,43 @@ app.post("/payment-cancel", async (req, res) => {
 });
 
 
-
 // payment fail api:
 app.post("/payment-fail", async (req, res) => {
   try {
     const failData = req.body;
-    
+    console.log("Failure Data Received:", failData); // Log the received data
+
+    // Ensure failData contains the required transaction ID (tran_id)
+    if (!failData.tran_id) {
+      return res.status(400).json({ message: "Transaction ID is missing" });
+    }
+
     // Update the database to mark payment as failed
-    const query = { paymentId: failData.tran_id };
+    const query = { "userPayment.paymentId": failData.tran_id }; // Match the payment by paymentId in userPayment array
     const update = { 
       $set: {
-        status: "Failed",
-        paymentType: failData.card_type || "N/A", // Set to "N/A" if no card type is available
+        "userPayment.$.status": "Failed",
+        "userPayment.$.paymentType": failData.card_type || "N/A", // Set to "N/A" if no card type is available
       } 
     };
 
+    // Log query and update to debug
+    console.log("Query:", query);
+    console.log("Update:", update);
+
     const result = await paymentCollection.updateOne(query, update);
 
-    // If the update was successful, redirect the user to the failed page
+    // Check if the update modified any documents
+    if (result.matchedCount === 0) {
+      console.error("No matching payment found for the transaction ID:", failData.tran_id);
+      return res.status(404).json({ message: "No matching payment found" });
+    }
+
     if (result.modifiedCount === 1) {
+      // Payment update successful, redirect to the failure page
       return res.redirect('http://localhost:5173/payment-fail');
     } else {
-      // If the update failed, return a failure response
+      console.error("Payment update failed, document was not modified.");
       return res.status(400).json({ message: "Payment status update failed" });
     }
 
@@ -678,6 +732,7 @@ app.post("/payment-fail", async (req, res) => {
     return res.status(500).json({ message: "Internal server error" });
   }
 });
+
 
 
  ////////////////////// Payment Collection End ////////////////////////
