@@ -623,7 +623,6 @@ app.post("/create-payment", async (req, res) => {
 });
 
 
-
 // success payment api:
 app.post("/payment-success", async (req, res) => {
   try {
@@ -757,6 +756,76 @@ app.post("/payment-fail", async (req, res) => {
   } catch (error) {
     console.error("Error updating payment status to Failed:", error);
     return res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+/////// All Payment Get Api:
+
+// Payment Get APi:
+app.get("/get-payments", async (req, res) => {
+  try {
+    const userEmail = req.query.email; 
+
+    // Query to find payment data based on user email
+    const userPayments = await paymentCollection.findOne({ customerEmail: userEmail });
+
+    if (!userPayments) {
+      return res.status(404).json({ message: "No payment data found for this user" });
+    }
+
+    // Send the payment data back to the frontend
+    res.json(userPayments);
+
+  } catch (error) {
+    console.error("Error fetching payment data:", error);
+    res.status(500).json({ message: "Failed to fetch payment data" });
+  }
+});
+
+// Get Success All Payments API
+app.get("/get-success-payments", async (req, res) => {
+  try {
+    const userEmail = req.query.email; // Get the user's email from query params or authentication
+
+    // Query to find only successful payments for the user
+    const userPayments = await paymentCollection.findOne(
+      { customerEmail: userEmail }, 
+      { projection: { userPayment: { $elemMatch: { status: "Success" } } } }
+    );
+
+    if (!userPayments || !userPayments.userPayment.length) {
+      return res.status(404).json({ message: "No successful payments found for this user" });
+    }
+
+    // Send only the successful payment data back to the frontend
+    res.json(userPayments.userPayment);
+  } catch (error) {
+    console.error("Error fetching successful payments:", error);
+    res.status(500).json({ message: "Failed to fetch successful payment data" });
+  }
+});
+
+
+// Get Success Latest Payment
+app.get("/get-latest-payment", async (req, res) => {
+  try {
+    const userEmail = req.query.email;
+    
+    // Find the user by email
+    const user = await paymentCollection.findOne({ customerEmail: userEmail });
+    
+    if (!user || !user.userPayment || user.userPayment.length === 0) {
+      return res.status(404).json({ message: "No payment data found" });
+    }
+
+    // Get the latest payment (last entry in userPayment array)
+    const latestPayment = user.userPayment[user.userPayment.length - 1];
+    
+    res.status(200).json(latestPayment);
+
+  } catch (error) {
+    console.error("Error fetching latest payment:", error);
+    res.status(500).json({ message: "Internal server error" });
   }
 });
 
