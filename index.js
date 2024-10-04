@@ -4,8 +4,8 @@ require("dotenv").config();
 const app = express();
 const jwt = require("jsonwebtoken");
 const port = 5000;
-const { v4: uuidv4 } = require('uuid');
-const axios = require('axios');
+const { v4: uuidv4 } = require("uuid");
+const axios = require("axios");
 
 app.use(cors());
 app.use(express.json());
@@ -32,7 +32,7 @@ async function run() {
     const blogsCollection = client.db("BlogsDB").collection("Blogs");
     const wishlistCollection = client.db("WishlistDB").collection("Wishlist");
     const cartCollection = client.db("CartListDB").collection("carts");
-    const paymentCollection = client.db('paymentDB').collection("payment");
+    const paymentCollection = client.db("paymentDB").collection("payment");
 
     // jwt related api
     app.post("/jwt", async (req, res) => {
@@ -152,7 +152,15 @@ async function run() {
     });
     app.get("/products/all", async (req, res) => {
       try {
-        const { brands, ram, colors, driveSizes, gpuBrands, processors, screenSizes } = req.query;
+        const {
+          brands,
+          ram,
+          colors,
+          driveSizes,
+          gpuBrands,
+          processors,
+          screenSizes,
+        } = req.query;
 
         // Initialize query object
         const query = {};
@@ -243,7 +251,11 @@ async function run() {
         } else {
           const skip = (page - 1) * limit;
           totalBlogs = await blogsCollection.countDocuments();
-          blogs = await blogsCollection.find().skip(skip).limit(limit).toArray();
+          blogs = await blogsCollection
+            .find()
+            .skip(skip)
+            .limit(limit)
+            .toArray();
         }
 
         res.status(200).json({
@@ -301,7 +313,9 @@ async function run() {
           }
         }
 
-        res.status(200).json({ message: "Product added to wishlist", wishlist });
+        res
+          .status(200)
+          .json({ message: "Product added to wishlist", wishlist });
       } catch (error) {
         console.error("Error adding product to wishlist:", error);
         res.status(500).json({ error: "Internal Server Error" });
@@ -342,12 +356,19 @@ async function run() {
         }
 
         // Filter out the product from the products array
-        const updatedProducts = wishlist.products.filter((product) => product._id !== productId);
+        const updatedProducts = wishlist.products.filter(
+          (product) => product._id !== productId
+        );
 
         // Update the wishlist with the new products array
-        await wishlistCollection.updateOne({ userId }, { $set: { products: updatedProducts } });
+        await wishlistCollection.updateOne(
+          { userId },
+          { $set: { products: updatedProducts } }
+        );
 
-        res.status(200).json({ message: "Product removed from wishlist", updatedProducts });
+        res
+          .status(200)
+          .json({ message: "Product removed from wishlist", updatedProducts });
       } catch (error) {
         console.error("Error removing product from wishlist:", error);
         res.status(500).json({ error: "Internal Server Error" });
@@ -494,7 +515,9 @@ async function run() {
         if (result.modifiedCount > 0) {
           // Check if quantity is now 0 and remove the product if it is
           const updatedCart = await cartCollection.findOne({ userEmail });
-          const product = updatedCart.products.find((p) => p.product._id === productId);
+          const product = updatedCart.products.find(
+            (p) => p.product._id === productId
+          );
 
           if (product && product.quantity <= 0) {
             await cartCollection.updateOne(
@@ -503,9 +526,11 @@ async function run() {
             );
           }
 
-          res
-            .status(200)
-            .json({ message: `Quantity ${action === "increase" ? "increased" : "decreased"}` });
+          res.status(200).json({
+            message: `Quantity ${
+              action === "increase" ? "increased" : "decreased"
+            }`,
+          });
         } else {
           res.status(404).json({ message: "Product not found in cart" });
         }
@@ -515,258 +540,303 @@ async function run() {
       }
     });
 
-     // Endpoint to clear the cart for a user
-  app.post('/api/cart/clear/:userEmail', async (req, res) => {
-    try {
-      const { userEmail } = req.params;
-      await cartCollection.updateOne({ userEmail }, { $set: { products: [] } });
-      res.status(200).json({ message: 'Cart cleared successfully' });
-    } catch (error) {
-      res.status(500).json({ message: 'Error clearing cart' });
-    }
-  });
-
+    // Endpoint to clear the cart for a user
+    app.post("/api/cart/clear/:userEmail", async (req, res) => {
+      try {
+        const { userEmail } = req.params;
+        await cartCollection.updateOne(
+          { userEmail },
+          { $set: { products: [] } }
+        );
+        res.status(200).json({ message: "Cart cleared successfully" });
+      } catch (error) {
+        res.status(500).json({ message: "Error clearing cart" });
+      }
+    });
 
     ////////////////////// Payment Collection Start ////////////////////////
 
-// Payment post API
-app.post("/create-payment", async (req, res) => {
-  const paymentInfo = req.body;
-  const tran_id = uuidv4(); // Generates a unique transaction ID
-  const userEmail = paymentInfo.userEmail;
+    // Payment post API
+    app.post("/create-payment", async (req, res) => {
+      const paymentInfo = req.body;
+      const tran_id = uuidv4(); // Generates a unique transaction ID
+      const userEmail = paymentInfo.userEmail;
 
-  const initiateData = {
-    store_id: process.env.SSL_STORE_ID,
-    store_passwd: process.env.SSL_STORE_PASSWORD,
-    total_amount: paymentInfo.totalPrice,
-    currency: "EUR",
-    tran_id: tran_id,
-    success_url: "http://localhost:5000/payment-success",
-    fail_url: "http://localhost:5000/payment-fail",
-    cancel_url: "http://localhost:5000/payment-cancel",
-    cus_name: paymentInfo.userName,
-    cus_email: userEmail,
-    cus_add1: "Dhaka",
-    cus_add2: "Dhaka",
-    cus_city: "Dhaka",
-    cus_state: "Dhaka",
-    cus_postcode: "1000",
-    cus_country: "Bangladesh",
-    cus_phone: "01711111111",
-    cus_fax: "01711111111",
-    shipping_method: "NO",
-    product_name: "Computer",
-    product_category: "Electronic",
-    product_profile: "general",
-    multi_card_name: "mastercard,visacard,amexcard",
-    value_a: "ref001_A",
-    value_b: "ref002_B",
-    value_c: "ref003_C",
-    value_d: "ref004_D",
-  };
-
-  try {
-    // Initiate the payment request to SSLCommerz
-    const response = await axios({
-      method: "POST",
-      url: "https://sandbox.sslcommerz.com/gwprocess/v4/api.php",
-      data: initiateData,
-      headers: { "Content-Type": "application/x-www-form-urlencoded" }
-    });
-
-    const newPayment = {
-      paymentType: response.data.card_brand || 'N/A',
-      paymentIssuer: response.data.card_issuer || null,
-      customerName: paymentInfo.userName || "Unknown",
-      customerEmail: paymentInfo.userEmail,
-      paymentId: tran_id, // Use the same tran_id for payment success query
-      amount: paymentInfo.totalPrice,
-      status: "Pending", // Payment status is pending until confirmed
-      timestamp: new Date(),
-      cart: paymentInfo.cart || []
-    };
-
-    const existingUser = await paymentCollection.findOne({ customerEmail: userEmail });
-
-    if (existingUser) {
-      const updateResult = await paymentCollection.updateOne(
-        { customerEmail: userEmail },
-        { $push: { userPayment: newPayment } }
-      );
-
-      if (updateResult.matchedCount === 0 || updateResult.modifiedCount === 0) {
-        console.error("Payment update failed for existing user.");
-        return res.status(500).send("Payment update failed");
-      }
-    } else {
-      const newUser = {
-        customerEmail: userEmail,
-        userPayment: [newPayment]
+      const initiateData = {
+        store_id: process.env.SSL_STORE_ID,
+        store_passwd: process.env.SSL_STORE_PASSWORD,
+        total_amount: paymentInfo.totalPrice,
+        currency: "EUR",
+        tran_id: tran_id,
+        success_url: "http://localhost:5000/payment-success",
+        fail_url: "http://localhost:5000/payment-fail",
+        cancel_url: "http://localhost:5000/payment-cancel",
+        cus_name: paymentInfo.userName,
+        cus_email: userEmail,
+        cus_add1: "Dhaka",
+        cus_add2: "Dhaka",
+        cus_city: "Dhaka",
+        cus_state: "Dhaka",
+        cus_postcode: "1000",
+        cus_country: "Bangladesh",
+        cus_phone: "01711111111",
+        cus_fax: "01711111111",
+        shipping_method: "NO",
+        product_name: "Computer",
+        product_category: "Electronic",
+        product_profile: "general",
+        multi_card_name: "mastercard,visacard,amexcard",
+        value_a: "ref001_A",
+        value_b: "ref002_B",
+        value_c: "ref003_C",
+        value_d: "ref004_D",
       };
 
-      const insertResult = await paymentCollection.insertOne(newUser);
+      try {
+        // Initiate the payment request to SSLCommerz
+        const response = await axios({
+          method: "POST",
+          url: "https://sandbox.sslcommerz.com/gwprocess/v4/api.php",
+          data: initiateData,
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        });
 
-      if (!insertResult.acknowledged) {
-        console.error("Failed to insert new user");
-        return res.status(500).send("Failed to insert new user");
+        const newPayment = {
+          paymentType: response.data.card_brand || "N/A",
+          paymentIssuer: response.data.card_issuer || null,
+          customerName: paymentInfo.userName || "Unknown",
+          customerEmail: paymentInfo.userEmail,
+          paymentId: tran_id, // Use the same tran_id for payment success query
+          amount: paymentInfo.totalPrice,
+          status: "Pending", // Payment status is pending until confirmed
+          timestamp: new Date(),
+          cart: paymentInfo.cart || [],
+        };
+
+        const existingUser = await paymentCollection.findOne({
+          customerEmail: userEmail,
+        });
+
+        if (existingUser) {
+          const updateResult = await paymentCollection.updateOne(
+            { customerEmail: userEmail },
+            { $push: { userPayment: newPayment } }
+          );
+
+          if (
+            updateResult.matchedCount === 0 ||
+            updateResult.modifiedCount === 0
+          ) {
+            console.error("Payment update failed for existing user.");
+            return res.status(500).send("Payment update failed");
+          }
+        } else {
+          const newUser = {
+            customerEmail: userEmail,
+            userPayment: [newPayment],
+          };
+
+          const insertResult = await paymentCollection.insertOne(newUser);
+
+          if (!insertResult.acknowledged) {
+            console.error("Failed to insert new user");
+            return res.status(500).send("Failed to insert new user");
+          }
+        }
+
+        res.send({
+          paymentUrl: response.data.GatewayPageURL,
+        });
+      } catch (error) {
+        console.error("Error creating payment:", error);
+        res.status(500).send("Payment creation failed");
       }
-    }
-
-    res.send({
-      paymentUrl: response.data.GatewayPageURL,
     });
 
-  } catch (error) {
-    console.error("Error creating payment:", error);
-    res.status(500).send("Payment creation failed");
-  }
-});
+    // success payment api:
+    app.post("/payment-success", async (req, res) => {
+      try {
+        const successData = req.body;
+        console.log("success data 307:", successData);
 
+        // Check if payment status is valid
+        if (successData.status !== "VALID") {
+          return res
+            .status(401)
+            .json({ message: "Unauthorized Payment, Invalid Payment" });
+        }
 
+        // Log transaction ID to make sure it exists
+        console.log("Transaction ID:", successData.tran_id);
 
-// success payment api:
-app.post("/payment-success", async (req, res) => {
-  try {
-    const successData = req.body;
-    console.log("success data 307:", successData);
+        // Update the database with payment success details
+        const query = { "userPayment.paymentId": successData.tran_id }; // Update based on paymentId
+        const update = {
+          $set: {
+            "userPayment.$.status": "Success", // Update the specific payment
+            "userPayment.$.paymentType": successData.card_brand,
+            "userPayment.$.paymentIssuer": successData.card_issuer,
+          },
+        };
 
-    // Check if payment status is valid
-    if (successData.status !== "VALID") {
-      return res.status(401).json({ message: "Unauthorized Payment, Invalid Payment" });
-    }
+        const result = await paymentCollection.updateOne(query, update);
 
-    // Log transaction ID to make sure it exists
-    console.log("Transaction ID:", successData.tran_id);
-
-    // Update the database with payment success details
-    const query = { "userPayment.paymentId": successData.tran_id }; // Update based on paymentId
-    const update = { 
-      $set: {
-        "userPayment.$.status": "Success", // Update the specific payment
-        "userPayment.$.paymentType": successData.card_brand,
-        "userPayment.$.paymentIssuer": successData.card_issuer,
+        // Check if the update was successful
+        if (result.modifiedCount === 1) {
+          return res.redirect("http://localhost:5173/payment-success");
+        } else {
+          console.error("Payment update failed. Result:", result);
+          return res.status(400).json({ message: "Payment update failed" });
+        }
+      } catch (error) {
+        console.error("Error updating payment status:", error);
+        return res.status(500).json({ message: "Internal server error" });
       }
-    };
+    });
 
-    const result = await paymentCollection.updateOne(query, update);
+    // payment cancel api:
+    app.post("/payment-cancel", async (req, res) => {
+      try {
+        const cancelData = req.body;
+        console.log("Cancel Data Received:", cancelData); // Log the received data for debugging
 
-    // Check if the update was successful
-    if (result.modifiedCount === 1) {
-      return res.redirect('http://localhost:5173/payment-success');
-    } else {
-      console.error("Payment update failed. Result:", result);
-      return res.status(400).json({ message: "Payment update failed" });
-    }
+        // Ensure the transaction ID (tran_id) exists
+        if (!cancelData.tran_id) {
+          return res.status(400).json({ message: "Transaction ID is missing" });
+        }
 
-  } catch (error) {
-    console.error("Error updating payment status:", error);
-    return res.status(500).json({ message: "Internal server error" });
-  }
-});
+        // Query the database to find the transaction in the userPayment array
+        const query = { "userPayment.paymentId": cancelData.tran_id }; // Match paymentId inside the userPayment array
 
+        // Update the payment status to 'Cancel' in the database
+        const update = {
+          $set: {
+            "userPayment.$.status": "Cancel", // Update the specific payment status
+            "userPayment.$.paymentType": cancelData.card_type || "N/A", // Set card type if available
+          },
+        };
 
-// payment cancel api:
-app.post("/payment-cancel", async (req, res) => {
-  try {
-    const cancelData = req.body;
-    console.log("Cancel Data Received:", cancelData); // Log the received data for debugging
+        // Log query and update for debugging purposes
+        console.log("Query:", query);
+        console.log("Update:", update);
 
-    // Ensure the transaction ID (tran_id) exists
-    if (!cancelData.tran_id) {
-      return res.status(400).json({ message: "Transaction ID is missing" });
-    }
+        const result = await paymentCollection.updateOne(query, update);
 
-    // Query the database to find the transaction in the userPayment array
-    const query = { "userPayment.paymentId": cancelData.tran_id }; // Match paymentId inside the userPayment array
+        // Check if the update modified any documents
+        if (result.matchedCount === 0) {
+          console.error(
+            "No matching payment found for the transaction ID:",
+            cancelData.tran_id
+          );
+          return res.status(404).json({ message: "No matching payment found" });
+        }
 
-    // Update the payment status to 'Cancel' in the database
-    const update = {
-      $set: {
-        "userPayment.$.status": "Cancel", // Update the specific payment status
-        "userPayment.$.paymentType": cancelData.card_type || "N/A", // Set card type if available
+        if (result.modifiedCount === 1) {
+          // Payment update successful, redirect to the cancel page
+          return res.redirect("http://localhost:5173/payment-cancel");
+        } else {
+          console.error("Payment update failed, document was not modified.");
+          return res
+            .status(400)
+            .json({ message: "Payment status update failed" });
+        }
+      } catch (error) {
+        console.error("Error updating payment status to 'Cancel':", error);
+        return res.status(500).json({ message: "Internal server error" });
       }
-    };
+    });
 
-    // Log query and update for debugging purposes
-    console.log("Query:", query);
-    console.log("Update:", update);
+    // payment fail api:
+    app.post("/payment-fail", async (req, res) => {
+      try {
+        const failData = req.body;
+        console.log("Failure Data Received:", failData); // Log the received data
 
-    const result = await paymentCollection.updateOne(query, update);
+        // Ensure failData contains the required transaction ID (tran_id)
+        if (!failData.tran_id) {
+          return res.status(400).json({ message: "Transaction ID is missing" });
+        }
 
-    // Check if the update modified any documents
-    if (result.matchedCount === 0) {
-      console.error("No matching payment found for the transaction ID:", cancelData.tran_id);
-      return res.status(404).json({ message: "No matching payment found" });
-    }
+        // Update the database to mark payment as failed
+        const query = { "userPayment.paymentId": failData.tran_id }; // Match the payment by paymentId in userPayment array
+        const update = {
+          $set: {
+            "userPayment.$.status": "Failed",
+            "userPayment.$.paymentType": failData.card_type || "N/A", // Set to "N/A" if no card type is available
+          },
+        };
 
-    if (result.modifiedCount === 1) {
-      // Payment update successful, redirect to the cancel page
-      return res.redirect('http://localhost:5173/payment-cancel');
-    } else {
-      console.error("Payment update failed, document was not modified.");
-      return res.status(400).json({ message: "Payment status update failed" });
-    }
+        // Log query and update to debug
+        console.log("Query:", query);
+        console.log("Update:", update);
 
-  } catch (error) {
-    console.error("Error updating payment status to 'Cancel':", error);
-    return res.status(500).json({ message: "Internal server error" });
-  }
-});
+        const result = await paymentCollection.updateOne(query, update);
 
+        // Check if the update modified any documents
+        if (result.matchedCount === 0) {
+          console.error(
+            "No matching payment found for the transaction ID:",
+            failData.tran_id
+          );
+          return res.status(404).json({ message: "No matching payment found" });
+        }
 
-// payment fail api:
-app.post("/payment-fail", async (req, res) => {
-  try {
-    const failData = req.body;
-    console.log("Failure Data Received:", failData); // Log the received data
+        if (result.modifiedCount === 1) {
+          // Payment update successful, redirect to the failure page
+          return res.redirect("http://localhost:5173/payment-fail");
+        } else {
+          console.error("Payment update failed, document was not modified.");
+          return res
+            .status(400)
+            .json({ message: "Payment status update failed" });
+        }
+      } catch (error) {
+        console.error("Error updating payment status to Failed:", error);
+        return res.status(500).json({ message: "Internal server error" });
+      }
+    });
 
-    // Ensure failData contains the required transaction ID (tran_id)
-    if (!failData.tran_id) {
-      return res.status(400).json({ message: "Transaction ID is missing" });
-    }
+    ////////////////////// Payment Collection End ////////////////////////
 
-    // Update the database to mark payment as failed
-    const query = { "userPayment.paymentId": failData.tran_id }; // Match the payment by paymentId in userPayment array
-    const update = { 
-      $set: {
-        "userPayment.$.status": "Failed",
-        "userPayment.$.paymentType": failData.card_type || "N/A", // Set to "N/A" if no card type is available
-      } 
-    };
+    ////////////////////// stats or analytics ////////////////////////
+    app.get("/admin-stats", verifyToken, verifyAdmin, async (req, res) => {
+      const users = await usersCollection.estimatedDocumentCount();
+      const products = await productCollection.estimatedDocumentCount();
+      const orders = await paymentCollection.estimatedDocumentCount();
 
-    // Log query and update to debug
-    console.log("Query:", query);
-    console.log("Update:", update);
+      const result = await paymentCollection
+        .aggregate([
+          {
+            $unwind: "$userPayment", // Unwind the userPayment array
+          },
+          {
+            $match: {
+              "userPayment.status": "Success", // Only consider successful payments
+            },
+          },
+          {
+            $group: {
+              _id: null,
+              totalRevenue: {
+                $sum: "$userPayment.amount", // Sum up the amounts of successful payments
+              },
+            },
+          },
+        ])
+        .toArray();
 
-    const result = await paymentCollection.updateOne(query, update);
+      const revenue = result.length > 0 ? result[0].totalRevenue : 0;
 
-    // Check if the update modified any documents
-    if (result.matchedCount === 0) {
-      console.error("No matching payment found for the transaction ID:", failData.tran_id);
-      return res.status(404).json({ message: "No matching payment found" });
-    }
-
-    if (result.modifiedCount === 1) {
-      // Payment update successful, redirect to the failure page
-      return res.redirect('http://localhost:5173/payment-fail');
-    } else {
-      console.error("Payment update failed, document was not modified.");
-      return res.status(400).json({ message: "Payment status update failed" });
-    }
-
-  } catch (error) {
-    console.error("Error updating payment status to Failed:", error);
-    return res.status(500).json({ message: "Internal server error" });
-  }
-});
-
-
-
- ////////////////////// Payment Collection End ////////////////////////
-
+      res.send({
+        users,
+        products,
+        orders,
+        revenue,
+      });
+    });
     console.log("You successfully connected to MongoDB!");
   } finally {
-    // Ensures that the client will close when you finish/error
+    // Ensures that the client will close when you finish/errors
     // await client.close();
   }
 }
