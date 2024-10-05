@@ -836,7 +836,7 @@ async function run() {
     });
     console.log("You successfully connected to MongoDB!");
   } finally {
-    // Ensures that the client will close when you finish/errors
+    // Ensures that the client will close when you finish/error
     // await client.close();
   }
 }
