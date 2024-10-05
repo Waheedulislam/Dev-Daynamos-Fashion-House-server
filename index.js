@@ -25,7 +25,7 @@ const client = new MongoClient(uri, {
 
 async function run() {
   try {
-    await client.connect();
+    // await client.connect();
     // Users
     const usersCollection = client.db("UsersDB").collection("Users");
     const productCollection = client.db("productDB").collection("Products");
@@ -834,7 +834,7 @@ async function run() {
         revenue,
       });
     });
-    console.log("You successfully connected to MongoDB!");
+    // console.log("You successfully connected to MongoDB!");
   } finally {
     // Ensures that the client will close when you finish/error
     // await client.close();
