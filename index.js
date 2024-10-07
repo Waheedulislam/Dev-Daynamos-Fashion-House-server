@@ -653,6 +653,31 @@ async function run() {
       }
     });
 
+    // Payment Get APi:
+    app.get("/get-payments", async (req, res) => {
+      try {
+        // Assume you are using userEmail for user authentication
+        const userEmail = req.query.email; // Pass user email as a query parameter or get it from authentication
+
+        // Query to find payment data based on user email
+        const userPayments = await paymentCollection.findOne({
+          customerEmail: userEmail,
+        });
+
+        if (!userPayments) {
+          return res
+            .status(404)
+            .json({ message: "No payment data found for this user" });
+        }
+
+        // Send the payment data back to the frontend
+        res.json(userPayments);
+      } catch (error) {
+        console.error("Error fetching payment data:", error);
+        res.status(500).json({ message: "Failed to fetch payment data" });
+      }
+    });
+
     // success payment api:
     app.post("/payment-success", async (req, res) => {
       try {
