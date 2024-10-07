@@ -683,7 +683,7 @@ async function run() {
 
         // Check if the update was successful
         if (result.modifiedCount === 1) {
-          return res.redirect("http://localhost:5173/payment-success");
+          return res.redirect("https://techheim.netlify.app/payment-success");
         } else {
           console.error("Payment update failed. Result:", result);
           return res.status(400).json({ message: "Payment update failed" });
@@ -733,7 +733,7 @@ async function run() {
 
         if (result.modifiedCount === 1) {
           // Payment update successful, redirect to the cancel page
-          return res.redirect("http://localhost:5173/payment-cancel");
+          return res.redirect("https://techheim.netlify.app/payment-cancel");
         } else {
           console.error("Payment update failed, document was not modified.");
           return res
@@ -783,7 +783,7 @@ async function run() {
 
         if (result.modifiedCount === 1) {
           // Payment update successful, redirect to the failure page
-          return res.redirect("http://localhost:5173/payment-fail");
+          return res.redirect("https://techheim.netlify.app/payment-fail");
         } else {
           console.error("Payment update failed, document was not modified.");
           return res
