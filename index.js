@@ -150,6 +150,10 @@ async function run() {
       const result = await productCollection.insertOne(products);
       res.send(result);
     });
+    app.get("/products/all/homePage", async (req, res) => {
+      const result = await productCollection.find().toArray();
+      res.send(result);
+    });
     app.get("/products/all", async (req, res) => {
       try {
         const {
