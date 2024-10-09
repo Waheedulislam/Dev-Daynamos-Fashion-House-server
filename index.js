@@ -793,7 +793,7 @@ async function run() {
     });
 
     // change deleivery status for user payment  from admin manage order
-    app.put("/api/payments/:paymentId", async (req, res) => {
+    app.patch("/api/payments/:paymentId", async (req, res) => {
       const { paymentId } = req.params;
       const { deliveryStatus } = req.body;
   
