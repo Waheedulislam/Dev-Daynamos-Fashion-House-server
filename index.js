@@ -792,6 +792,30 @@ async function run() {
       }
     });
 
+    // change deleivery status for user payment  from admin manage order
+    app.put("/api/payments/:paymentId", async (req, res) => {
+      const { paymentId } = req.params;
+      const { deliveryStatus } = req.body;
+  
+      try {
+        // Find the order by paymentId and update the deliveryStatus
+        const result = await paymentCollection.updateOne(
+          { "userPayment.paymentId": paymentId },
+          { $set: { "userPayment.$.deliveryStatus": deliveryStatus } }
+        );
+  
+        if (result.modifiedCount === 0) {
+          return res.status(404).json({ message: "Payment not found or not updated" });
+        }
+  
+        res.json({ message: "Delivery status updated successfully" });
+      } catch (error) {
+        res.status(500).json({ message: "Error updating delivery status", error });
+      }
+    });
+  
+  
+
     ////////////////////// Payment Collection End ////////////////////////
 
     ////////////////////// stats or analytics ////////////////////////
