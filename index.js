@@ -50,13 +50,17 @@ async function run() {
         return res.status(401).send({ massage: "Unauthorize access" });
       }
       const token = req.headers.authorization.split(" ")[1];
-      jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, function (err, decoded) {
-        if (err) {
-          return res.status(401).send({ massage: "Unauthorize access" });
+      jwt.verify(
+        token,
+        process.env.ACCESS_TOKEN_SECRET,
+        function (err, decoded) {
+          if (err) {
+            return res.status(401).send({ massage: "Unauthorize access" });
+          }
+          req.decoded = decoded;
+          next();
         }
-        req.decoded = decoded;
-        next();
-      });
+      );
     };
     // use verify admin after
     const verifyAdmin = async (req, res, next) => {
@@ -109,25 +113,35 @@ async function run() {
       res.send({ admin });
     });
     // Users patch make admin
-    app.patch("/users/admin/:id", verifyToken, verifyAdmin, async (req, res) => {
-      const id = req?.params?.id;
-      const filter = { _id: new ObjectId(id) };
-      const updatedDoc = {
-        $set: {
-          role: "admin",
-        },
-      };
-      const result = await usersCollection.updateOne(filter, updatedDoc);
-      res.send(result);
-    });
+    app.patch(
+      "/users/admin/:id",
+      verifyToken,
+      verifyAdmin,
+      async (req, res) => {
+        const id = req?.params?.id;
+        const filter = { _id: new ObjectId(id) };
+        const updatedDoc = {
+          $set: {
+            role: "admin",
+          },
+        };
+        const result = await usersCollection.updateOne(filter, updatedDoc);
+        res.send(result);
+      }
+    );
     // Users Delete
-    app.delete("/users/delete/:id", verifyToken, verifyAdmin, async (req, res) => {
-      const id = req?.params?.id;
-      const result = await usersCollection.deleteOne({
-        _id: new ObjectId(id),
-      });
-      res.send(result);
-    });
+    app.delete(
+      "/users/delete/:id",
+      verifyToken,
+      verifyAdmin,
+      async (req, res) => {
+        const id = req?.params?.id;
+        const result = await usersCollection.deleteOne({
+          _id: new ObjectId(id),
+        });
+        res.send(result);
+      }
+    );
     ////////////////////// Product Collection ////////////////////////
 
     // post all product
@@ -142,7 +156,15 @@ async function run() {
     });
     app.get("/products/all", async (req, res) => {
       try {
-        const { brands, ram, colors, driveSizes, gpuBrands, processors, screenSizes } = req.query;
+        const {
+          brands,
+          ram,
+          colors,
+          driveSizes,
+          gpuBrands,
+          processors,
+          screenSizes,
+        } = req.query;
 
         // Initialize query object
         const query = {};
@@ -233,7 +255,11 @@ async function run() {
         } else {
           const skip = (page - 1) * limit;
           totalBlogs = await blogsCollection.countDocuments();
-          blogs = await blogsCollection.find().skip(skip).limit(limit).toArray();
+          blogs = await blogsCollection
+            .find()
+            .skip(skip)
+            .limit(limit)
+            .toArray();
         }
 
         res.status(200).json({
@@ -291,7 +317,9 @@ async function run() {
           }
         }
 
-        res.status(200).json({ message: "Product added to wishlist", wishlist });
+        res
+          .status(200)
+          .json({ message: "Product added to wishlist", wishlist });
       } catch (error) {
         console.error("Error adding product to wishlist:", error);
         res.status(500).json({ error: "Internal Server Error" });
@@ -332,12 +360,19 @@ async function run() {
         }
 
         // Filter out the product from the products array
-        const updatedProducts = wishlist.products.filter((product) => product._id !== productId);
+        const updatedProducts = wishlist.products.filter(
+          (product) => product._id !== productId
+        );
 
         // Update the wishlist with the new products array
-        await wishlistCollection.updateOne({ userId }, { $set: { products: updatedProducts } });
+        await wishlistCollection.updateOne(
+          { userId },
+          { $set: { products: updatedProducts } }
+        );
 
-        res.status(200).json({ message: "Product removed from wishlist", updatedProducts });
+        res
+          .status(200)
+          .json({ message: "Product removed from wishlist", updatedProducts });
       } catch (error) {
         console.error("Error removing product from wishlist:", error);
         res.status(500).json({ error: "Internal Server Error" });
@@ -356,7 +391,9 @@ async function run() {
 
         if (userCart) {
           // Check if the product is already in the cart
-          const productExists = userCart.products.find((p) => p.product._id === product._id);
+          const productExists = userCart.products.find(
+            (p) => p.product._id === product._id
+          );
 
           if (productExists) {
             // If product exists, return a message
@@ -434,7 +471,9 @@ async function run() {
         }
 
         // Filter out the product from the products array
-        const updatedProducts = cart.products.filter((item) => item.product._id !== productId);
+        const updatedProducts = cart.products.filter(
+          (item) => item.product._id !== productId
+        );
 
         // Update the cart with the new products array
         const updateResult = await cartCollection.updateOne(
@@ -480,7 +519,9 @@ async function run() {
         if (result.modifiedCount > 0) {
           // Check if quantity is now 0 and remove the product if it is
           const updatedCart = await cartCollection.findOne({ userEmail });
-          const product = updatedCart.products.find((p) => p.product._id === productId);
+          const product = updatedCart.products.find(
+            (p) => p.product._id === productId
+          );
 
           if (product && product.quantity <= 0) {
             await cartCollection.updateOne(
@@ -490,7 +531,9 @@ async function run() {
           }
 
           res.status(200).json({
-            message: `Quantity ${action === "increase" ? "increased" : "decreased"}`,
+            message: `Quantity ${
+              action === "increase" ? "increased" : "decreased"
+            }`,
           });
         } else {
           res.status(404).json({ message: "Product not found in cart" });
@@ -505,7 +548,10 @@ async function run() {
     app.post("/api/cart/clear/:userEmail", async (req, res) => {
       try {
         const { userEmail } = req.params;
-        await cartCollection.updateOne({ userEmail }, { $set: { products: [] } });
+        await cartCollection.updateOne(
+          { userEmail },
+          { $set: { products: [] } }
+        );
         res.status(200).json({ message: "Cart cleared successfully" });
       } catch (error) {
         res.status(500).json({ message: "Error clearing cart" });
@@ -582,7 +628,10 @@ async function run() {
             { $push: { userPayment: newPayment } }
           );
 
-          if (updateResult.matchedCount === 0 || updateResult.modifiedCount === 0) {
+          if (
+            updateResult.matchedCount === 0 ||
+            updateResult.modifiedCount === 0
+          ) {
             console.error("Payment update failed for existing user.");
             return res.status(500).send("Payment update failed");
           }
@@ -617,7 +666,9 @@ async function run() {
 
         // Check if payment status is valid
         if (successData.status !== "VALID") {
-          return res.status(401).json({ message: "Unauthorized Payment, Invalid Payment" });
+          return res
+            .status(401)
+            .json({ message: "Unauthorized Payment, Invalid Payment" });
         }
 
         // Log transaction ID to make sure it exists
@@ -678,7 +729,10 @@ async function run() {
 
         // Check if the update modified any documents
         if (result.matchedCount === 0) {
-          console.error("No matching payment found for the transaction ID:", cancelData.tran_id);
+          console.error(
+            "No matching payment found for the transaction ID:",
+            cancelData.tran_id
+          );
           return res.status(404).json({ message: "No matching payment found" });
         }
 
@@ -687,7 +741,9 @@ async function run() {
           return res.redirect("http://localhost:5173/payment-cancel");
         } else {
           console.error("Payment update failed, document was not modified.");
-          return res.status(400).json({ message: "Payment status update failed" });
+          return res
+            .status(400)
+            .json({ message: "Payment status update failed" });
         }
       } catch (error) {
         console.error("Error updating payment status to 'Cancel':", error);
@@ -723,7 +779,10 @@ async function run() {
 
         // Check if the update modified any documents
         if (result.matchedCount === 0) {
-          console.error("No matching payment found for the transaction ID:", failData.tran_id);
+          console.error(
+            "No matching payment found for the transaction ID:",
+            failData.tran_id
+          );
           return res.status(404).json({ message: "No matching payment found" });
         }
 
@@ -732,7 +791,9 @@ async function run() {
           return res.redirect("http://localhost:5173/payment-fail");
         } else {
           console.error("Payment update failed, document was not modified.");
-          return res.status(400).json({ message: "Payment status update failed" });
+          return res
+            .status(400)
+            .json({ message: "Payment status update failed" });
         }
       } catch (error) {
         console.error("Error updating payment status to Failed:", error);
@@ -758,6 +819,40 @@ async function run() {
 
         // Send the payment data back to the frontend
         res.json(userPayments);
+      } catch (error) {
+        console.error("Error fetching payment data:", error);
+        res.status(500).json({ message: "Failed to fetch payment data" });
+      }
+    });
+
+    app.get("/get-payments/:id", async (req, res) => {
+      try {
+        const paymentId = req.params.id;
+
+        // Query to find payment data based on payment ID
+        const payment = await paymentCollection.findOne({
+          "userPayment.paymentId": paymentId,
+        });
+
+        if (!payment) {
+          return res
+            .status(404)
+            .json({ message: "No payment data found for this ID" });
+        }
+
+        // Find the specific payment within the userPayment array
+        const specificPayment = payment.userPayment.find(
+          (p) => p.paymentId === paymentId
+        );
+
+        if (!specificPayment) {
+          return res
+            .status(404)
+            .json({ message: "No payment data found for this ID" });
+        }
+
+        // Send the specific payment data back to the frontend
+        res.json(specificPayment);
       } catch (error) {
         console.error("Error fetching payment data:", error);
         res.status(500).json({ message: "Failed to fetch payment data" });
@@ -801,25 +896,27 @@ async function run() {
     app.patch("/api/payments/:paymentId", async (req, res) => {
       const { paymentId } = req.params;
       const { deliveryStatus } = req.body;
-  
+
       try {
         // Find the order by paymentId and update the deliveryStatus
         const result = await paymentCollection.updateOne(
           { "userPayment.paymentId": paymentId },
           { $set: { "userPayment.$.deliveryStatus": deliveryStatus } }
         );
-  
+
         if (result.modifiedCount === 0) {
-          return res.status(404).json({ message: "Payment not found or not updated" });
+          return res
+            .status(404)
+            .json({ message: "Payment not found or not updated" });
         }
-  
+
         res.json({ message: "Delivery status updated successfully" });
       } catch (error) {
-        res.status(500).json({ message: "Error updating delivery status", error });
+        res
+          .status(500)
+          .json({ message: "Error updating delivery status", error });
       }
     });
-  
-  
 
     ////////////////////// Payment Collection End ////////////////////////
 
