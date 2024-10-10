@@ -6,10 +6,37 @@ const jwt = require("jsonwebtoken");
 const port = 5000;
 const { v4: uuidv4 } = require("uuid");
 const axios = require("axios");
+const nodemailer = require("nodemailer");
 
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true })); // To parse URL-encoded bodies
+
+// Create a Nodemailer transporter
+const transporter = nodemailer.createTransport({
+  service: "gmail", // Replace with your preferred email service
+  auth: {
+    user: "infotechheim@gmail.com", // Admin email
+    pass: "xjkqwtiwjqbqoesw", // Admin email password
+  },
+});
+// Function to send email
+const sendOrderEmail = async (orderDetails) => {
+  const mailOptions = {
+    from: `${orderDetails.customerEmail}`, // Sender email address (user's email)
+    to: "infotechheim@gmail.com", // Admin email to receive notification
+    subject: `New Order Placed - Order ID: ${orderDetails.paymentId}`, // Updated to use paymentId
+    text: `A new order has been placed by ${orderDetails.customerName}.\n
+           Order ID: ${orderDetails.paymentId}\n
+           Total Amount: $${orderDetails.amount}\n
+           Customer Email: ${orderDetails.customerEmail}\n
+           Delivery Status: ${orderDetails.deliveryStatus || "Pending"}\n
+           Order Timestamp: ${orderDetails.timestamp.toISOString()}\n`,
+  };
+
+  // Send the email
+  await transporter.sendMail(mailOptions);
+};
 
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.cn4db.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
@@ -627,6 +654,8 @@ async function run() {
             { customerEmail: userEmail },
             { $push: { userPayment: newPayment } }
           );
+          // After order is saved, send email to the admin
+          await sendOrderEmail(newPayment); // Pass user's email
 
           if (
             updateResult.matchedCount === 0 ||
@@ -642,6 +671,8 @@ async function run() {
           };
 
           const insertResult = await paymentCollection.insertOne(newUser);
+          // After order is saved, send email to the admin
+          await sendOrderEmail(newPayment); // Pass user's email
 
           if (!insertResult.acknowledged) {
             console.error("Failed to insert new user");
@@ -812,9 +843,7 @@ async function run() {
         });
 
         if (!userPayments) {
-          return res
-            .status(404)
-            .json({ message: "No payment data found for this user" });
+          return res.status(404).json({ message: "No payment data found for this user" });
         }
 
         // Send the payment data back to the frontend
