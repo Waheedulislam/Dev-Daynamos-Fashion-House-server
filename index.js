@@ -118,10 +118,30 @@ async function run() {
       const result = await usersCollection.insertOne(user);
       res.send(result);
     });
+
     // Users GET
     app.get("/users", verifyToken, verifyAdmin, async (req, res) => {
       const result = await usersCollection.find().toArray();
 
+      res.send(result);
+    });
+    // single user get
+    app.get("/users/single/:email", async (req, res) => {
+      const email = req.params.email;
+      const result = await usersCollection.findOne({ email });
+      res.send(result);
+    });
+    // User profile update
+    app.patch("/users/upProfile/:email", async (req, res) => {
+      const email = req.params.email;
+      const userData = req.body;
+      const result = await usersCollection.updateOne(
+        { email },
+        {
+          $set: userData,
+        },
+        { upsert: true }
+      );
       res.send(result);
     });
 
@@ -843,7 +863,9 @@ async function run() {
         });
 
         if (!userPayments) {
-          return res.status(404).json({ message: "No payment data found for this user" });
+          return res
+            .status(404)
+            .json({ message: "No payment data found for this user" });
         }
 
         // Send the payment data back to the frontend
