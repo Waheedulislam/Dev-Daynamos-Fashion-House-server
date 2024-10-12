@@ -968,7 +968,29 @@ async function run() {
           .json({ message: "Error updating delivery status", error });
       }
     });
+    // Get Success Latest Payment
+    app.get("/get-latest-payment", async (req, res) => {
+      try {
+        const userEmail = req.query.email;
 
+        // Find the user by email
+        const user = await paymentCollection.findOne({
+          customerEmail: userEmail,
+        });
+
+        if (!user || !user.userPayment || user.userPayment.length === 0) {
+          return res.status(404).json({ message: "No payment data found" });
+        }
+
+        // Get the latest payment (last entry in userPayment array)
+        const latestPayment = user.userPayment[user.userPayment.length - 1];
+
+        res.status(200).json(latestPayment);
+      } catch (error) {
+        console.error("Error fetching latest payment:", error);
+        res.status(500).json({ message: "Internal server error" });
+      }
+    });
     ////////////////////// Payment Collection End ////////////////////////
 
     ////////////////////// stats or analytics ////////////////////////
