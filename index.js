@@ -811,9 +811,7 @@ async function run() {
         });
 
         if (!userPayments) {
-          return res
-            .status(404)
-            .json({ message: "No payment data found for this user" });
+          return res.status(404).json({ message: "No payment data found for this user" });
         }
 
         // Send the payment data back to the frontend
@@ -975,57 +973,56 @@ async function run() {
       const doc = new PDFDocument();
       const receiptPath = path.join(receiptFolder, `receipt_${transactionId}.pdf`);
 
-      // Create a writable stream to save the PDF
-      doc.pipe(fs.createWriteStream(receiptPath));
+      // Stream PDF file to write on disk
+      const writeStream = fs.createWriteStream(receiptPath);
+      doc.pipe(writeStream);
 
-      // Generate the receipt content
+      // Generate receipt content
       doc.fontSize(20).text("Company Name", { align: "center" });
       doc.fontSize(12).text("-------------------------------------------", { align: "center" });
       doc.text("Official Payment Receipt", { align: "center" });
       doc.text("-------------------------------------------", { align: "center" });
 
-      // Transaction and customer details
-      doc.text(`Receipt #:        ${transactionId}`);
-      doc.text(`Transaction ID:   TXN-${transactionId}`);
-      doc.text(`Date:             ${new Date().toLocaleDateString()}`);
+      doc.text(`Receipt #: ${transactionId}`);
+      doc.text(`Transaction ID: TXN-${transactionId}`);
+      doc.text(`Date: ${new Date().toLocaleDateString()}`);
       doc.text("-------------------------------------------");
-      doc.text(`Billed To:        ${customer.name}`);
-      doc.text(`Phone:            ${customer.phone}`);
-      doc.text(`Email:            ${customer.email}`);
+      doc.text(`Billed To: ${customer.name}`);
+      doc.text(`Phone: ${customer.phone}`);
+      doc.text(`Email: ${customer.email}`);
       doc.text("-------------------------------------------");
 
-      // Items Purchased
       doc.text("Items Purchased:");
       items.forEach((item, index) => {
-        doc.text(`${index + 1}. ${item.name}       Qty: ${item.qty}      $${item.price}`);
+        doc.text(`${index + 1}. ${item.name} Qty: ${item.qty} $${item.price}`);
       });
 
       const tax = (totalAmount * 0.05).toFixed(2);
       const grandTotal = (totalAmount + parseFloat(tax)).toFixed(2);
 
-      // Subtotal, Tax, Total
       doc.text("-------------------------------------------");
-      doc.text(`Subtotal:                         $${totalAmount.toFixed(2)}`);
-      doc.text(`Tax (5%):                         $${tax}`);
+      doc.text(`Subtotal: $${totalAmount.toFixed(2)}`);
+      doc.text(`Tax (5%): $${tax}`);
       doc.text("-------------------------------------------");
-      doc.fontSize(14).text(`Total Amount:                      $${grandTotal}`);
-      doc.fontSize(12).text("-------------------------------------------");
-      doc.text("Payment Method:     Credit Card (Visa)");
-      doc.text("Status:             Success");
+      doc.fontSize(14).text(`Total Amount: $${grandTotal}`);
       doc.text("-------------------------------------------");
-      doc.text("Thank you for your purchase!", { align: "center" });
-      doc.text("For inquiries, contact us at:", { align: "center" });
-      doc.text("support@company.com | (555) 123-4567", { align: "center" });
+      doc.text("Thank you for your purchase!");
 
-      // Finalize the PDF file
       doc.end();
 
-      // Send the receipt URL to the frontend
-      res.json({ receiptUrl: `/receipts/receipt_${transactionId}.pdf` });
-    });
+      // Wait for the PDF to finish writing
+      writeStream.on("finish", () => {
+        // Serve the generated PDF file
+        const file = fs.readFileSync(receiptPath);
+        res.contentType("application/pdf");
+        res.send(file);
+      });
 
-    // Serve the receipts folder to allow download
-    app.use("/receipts", express.static(receiptFolder));
+      writeStream.on("error", (err) => {
+        console.error("Error writing PDF file", err);
+        res.status(500).send("Error generating receipt");
+      });
+    });
 
     console.log("You successfully connected to MongoDB!");
   } finally {
