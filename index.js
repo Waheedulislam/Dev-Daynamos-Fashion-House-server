@@ -605,6 +605,8 @@ async function run() {
           headers: { "Content-Type": "application/x-www-form-urlencoded" },
         });
 
+        console.log('responce data 608 :' , response.data);
+
         const newPayment = {
           paymentType: response.data.card_brand || "N/A",
           paymentIssuer: response.data.card_issuer || null,
@@ -615,6 +617,7 @@ async function run() {
           status: "Pending", // Payment status is pending until confirmed
           timestamp: new Date(),
           cart: paymentInfo.cart || [],
+          shippingAddress: response.data.shippingAddress
         };
 
         const existingUser = await paymentCollection.findOne({
@@ -661,35 +664,44 @@ async function run() {
     app.post("/payment-success", async (req, res) => {
       try {
         const successData = req.body;
-        console.log("success data 307:", successData);
-
-        // Check if payment status is valid
-        if (successData.status !== "VALID") {
-          return res
-            .status(401)
-            .json({ message: "Unauthorized Payment, Invalid Payment" });
+        // console.log("Success data:", successData);
+    
+        // Ensure the transaction ID (tran_id) exists
+        if (!successData.tran_id) {
+          return res.status(400).json({ message: "Transaction ID is missing" });
         }
-
-        // Log transaction ID to make sure it exists
-        console.log("Transaction ID:", successData.tran_id);
-
-        // Update the database with payment success details
-        const query = { "userPayment.paymentId": successData.tran_id }; // Update based on paymentId
+    
+        // Ensure the userEmail exists
+        const userEmail = successData.userEmail;
+        // if (!userEmail) {
+        //   console.error("User email is missing");
+        //   return res.status(400).json({ message: "User email is missing" });
+        // }
+    
+        // console.log("User Email:", userEmail);
+    
+        // Clear the cart after payment success
+        await cartCollection.updateOne(
+          { userEmail: userEmail },
+          { $set: { products: [] } } // Clear the cart
+        );
+    
+        // Further updates to payment collection...
+        const query = { "userPayment.paymentId": successData.tran_id };
         const update = {
           $set: {
-            "userPayment.$.status": "Success", // Update the specific payment
-            "userPayment.$.paymentType": successData.card_brand,
+            "userPayment.$.status": "Success",
+            "userPayment.$.paymentType": successData.card_type || "N/A",
             "userPayment.$.paymentIssuer": successData.card_issuer,
           },
         };
-
+    
         const result = await paymentCollection.updateOne(query, update);
-
-        // Check if the update was successful
+    
         if (result.modifiedCount === 1) {
           return res.redirect("http://localhost:5173/payment-success");
         } else {
-          console.error("Payment update failed. Result:", result);
+          console.error("Payment update failed:", result);
           return res.status(400).json({ message: "Payment update failed" });
         }
       } catch (error) {
@@ -697,108 +709,118 @@ async function run() {
         return res.status(500).json({ message: "Internal server error" });
       }
     });
+    
+    
+/////////////////////////////////////// payment cancel api start  ///////////
 
-    // payment cancel api:
-    app.post("/payment-cancel", async (req, res) => {
-      try {
-        const cancelData = req.body;
-        console.log("Cancel Data Received:", cancelData); // Log the received data for debugging
+// Payment cancel API route
+app.post("/payment-cancel", async (req, res) => {
+  try {
+    // Extract cancel data from the request body
+    const cancelData = req.body;
+    console.log("Cancel Data Received:", cancelData); // Debugging logs
 
-        // Ensure the transaction ID (tran_id) exists
-        if (!cancelData.tran_id) {
-          return res.status(400).json({ message: "Transaction ID is missing" });
-        }
+    // Check if the transaction ID (tran_id) exists in the cancel data
+    if (!cancelData.tran_id) {
+      return res.status(400).json({ message: "Transaction ID is missing" });
+    }
 
-        // Query the database to find the transaction in the userPayment array
-        const query = { "userPayment.paymentId": cancelData.tran_id }; // Match paymentId inside the userPayment array
+    // Find the specific payment using the transaction ID in the userPayment array
+    const query = { "userPayment.paymentId": cancelData.tran_id };
 
-        // Update the payment status to 'Cancel' in the database
-        const update = {
-          $set: {
-            "userPayment.$.status": "Cancel", // Update the specific payment status
-            "userPayment.$.paymentType": cancelData.card_type || "N/A", // Set card type if available
-          },
-        };
+    // Update the payment status to "Cancel" in the database
+    const update = {
+      $set: {
+        "userPayment.$.status": "Cancel", // Mark the status as "Cancel"
+        "userPayment.$.paymentType": cancelData.card_type || "N/A", // Update card type if available
+      },
+    };
 
-        // Log query and update for debugging purposes
-        console.log("Query:", query);
-        console.log("Update:", update);
+    // Execute the update query
+    const result = await paymentCollection.updateOne(query, update);
 
-        const result = await paymentCollection.updateOne(query, update);
+    // Check if the payment was found and updated
+    if (result.matchedCount === 0) {
+      console.error("No matching payment found for the transaction ID:", cancelData.tran_id);
+      return res.status(404).json({ message: "No matching payment found" });
+    }
 
-        // Check if the update modified any documents
-        if (result.matchedCount === 0) {
-          console.error(
-            "No matching payment found for the transaction ID:",
-            cancelData.tran_id
-          );
-          return res.status(404).json({ message: "No matching payment found" });
-        }
+    // Check if the document was successfully modified
+    if (result.modifiedCount === 1) {
+      console.log("Payment status updated to Cancel successfully.");
+      // Redirect or send success response
+      return res.redirect("http://localhost:5173/payment-cancel"); // Adjust redirect URL as needed
+    } else {
+      console.error("Payment update failed, document was not modified.");
+      return res.status(400).json({ message: "Payment status update failed" });
+    }
+  } catch (error) {
+    console.error("Error updating payment status to 'Cancel':", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+});
 
-        if (result.modifiedCount === 1) {
-          // Payment update successful, redirect to the cancel page
-          return res.redirect("http://localhost:5173/payment-cancel");
-        } else {
-          console.error("Payment update failed, document was not modified.");
-          return res
-            .status(400)
-            .json({ message: "Payment status update failed" });
-        }
-      } catch (error) {
-        console.error("Error updating payment status to 'Cancel':", error);
-        return res.status(500).json({ message: "Internal server error" });
-      }
-    });
 
-    // payment fail api:
-    app.post("/payment-fail", async (req, res) => {
-      try {
-        const failData = req.body;
-        console.log("Failure Data Received:", failData); // Log the received data
+/////////////////////////////////////// payment cancel api End  ///////////
 
-        // Ensure failData contains the required transaction ID (tran_id)
-        if (!failData.tran_id) {
-          return res.status(400).json({ message: "Transaction ID is missing" });
-        }
+    
+ 
+//////////////////////////////////////////// Pyament Fail Api start ////////////////////////////////////////// 
 
-        // Update the database to mark payment as failed
-        const query = { "userPayment.paymentId": failData.tran_id }; // Match the payment by paymentId in userPayment array
-        const update = {
-          $set: {
-            "userPayment.$.status": "Failed",
-            "userPayment.$.paymentType": failData.card_type || "N/A", // Set to "N/A" if no card type is available
-          },
-        };
+app.post("/payment-fail", async (req, res) => {
+  try {
+    // Extract failure data from the request body
+    const failData = req.body;
+    console.log("Failure Data Received:", failData); // Debugging log
 
-        // Log query and update to debug
-        console.log("Query:", query);
-        console.log("Update:", update);
+    // Ensure the failData contains the transaction ID (tran_id)
+    if (!failData.tran_id) {
+      return res.status(400).json({ message: "Transaction ID is missing" });
+    }
 
-        const result = await paymentCollection.updateOne(query, update);
+    // Find the payment using the transaction ID in the userPayment array
+    const query = { "userPayment.paymentId": failData.tran_id };
 
-        // Check if the update modified any documents
-        if (result.matchedCount === 0) {
-          console.error(
-            "No matching payment found for the transaction ID:",
-            failData.tran_id
-          );
-          return res.status(404).json({ message: "No matching payment found" });
-        }
+    // Update the payment status to "Failed" and optionally set paymentType (e.g., card type)
+    const update = {
+      $set: {
+        "userPayment.$.status": "Failed", // Mark the status as "Failed"
+        "userPayment.$.paymentType": failData.card_type || "N/A", // Set card type if available
+      },
+    };
 
-        if (result.modifiedCount === 1) {
-          // Payment update successful, redirect to the failure page
-          return res.redirect("http://localhost:5173/payment-fail");
-        } else {
-          console.error("Payment update failed, document was not modified.");
-          return res
-            .status(400)
-            .json({ message: "Payment status update failed" });
-        }
-      } catch (error) {
-        console.error("Error updating payment status to Failed:", error);
-        return res.status(500).json({ message: "Internal server error" });
-      }
-    });
+    // Execute the update query
+    const result = await paymentCollection.updateOne(query, update);
+
+    // Check if the payment was found and updated
+    if (result.matchedCount === 0) {
+      console.error("No matching payment found for the transaction ID:", failData.tran_id);
+      return res.status(404).json({ message: "No matching payment found" });
+    }
+
+    // Check if the document was successfully modified
+    if (result.modifiedCount === 1) {
+      console.log("Payment status updated to Failed successfully.");
+      // Redirect or send a success response
+      return res.redirect("http://localhost:5173/payment-fail"); // Adjust redirect URL as needed
+    } else {
+      console.error("Payment update failed, document was not modified.");
+      return res.status(400).json({ message: "Payment status update failed" });
+    }
+  } catch (error) {
+    console.error("Error updating payment status to 'Failed':", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+
+//////////////////////////////////////////// Pyament Fail Api ////////////////////////////////////////// 
+
+
+
+
+
+
     // Payment Get APi:
     app.get("/get-payments", async (req, res) => {
       try {
@@ -823,6 +845,31 @@ async function run() {
         res.status(500).json({ message: "Failed to fetch payment data" });
       }
     });
+
+
+    // Get Success Latest Payment
+app.get("/get-latest-payment", async (req, res) => {
+  try {
+    const userEmail = req.query.email;
+    
+    // Find the user by email
+    const user = await paymentCollection.findOne({ customerEmail: userEmail });
+    
+    if (!user || !user.userPayment || user.userPayment.length === 0) {
+      return res.status(404).json({ message: "No payment data found" });
+    }
+
+    // Get the latest payment (last entry in userPayment array)
+    const latestPayment = user.userPayment[user.userPayment.length - 1];
+    
+    res.status(200).json(latestPayment);
+
+  } catch (error) {
+    console.error("Error fetching latest payment:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
 
     ////////////////////// Payment Collection End ////////////////////////
 
