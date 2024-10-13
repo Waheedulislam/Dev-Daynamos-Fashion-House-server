@@ -7,6 +7,9 @@ const port = 5000;
 const { v4: uuidv4 } = require("uuid");
 const axios = require("axios");
 const nodemailer = require("nodemailer");
+const PDFDocument = require("pdfkit");
+const fs = require("fs");
+const path = require("path");
 
 app.use(cors());
 app.use(express.json());
@@ -37,6 +40,12 @@ const sendOrderEmail = async (orderDetails) => {
   // Send the email
   await transporter.sendMail(mailOptions);
 };
+
+// Create a folder to store the receipts if it doesn't exist
+const receiptFolder = path.join(__dirname, "receipts");
+if (!fs.existsSync(receiptFolder)) {
+  fs.mkdirSync(receiptFolder);
+}
 
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.cn4db.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
@@ -77,17 +86,13 @@ async function run() {
         return res.status(401).send({ massage: "Unauthorize access" });
       }
       const token = req.headers.authorization.split(" ")[1];
-      jwt.verify(
-        token,
-        process.env.ACCESS_TOKEN_SECRET,
-        function (err, decoded) {
-          if (err) {
-            return res.status(401).send({ massage: "Unauthorize access" });
-          }
-          req.decoded = decoded;
-          next();
+      jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, function (err, decoded) {
+        if (err) {
+          return res.status(401).send({ massage: "Unauthorize access" });
         }
-      );
+        req.decoded = decoded;
+        next();
+      });
     };
     // use verify admin after
     const verifyAdmin = async (req, res, next) => {
@@ -160,35 +165,25 @@ async function run() {
       res.send({ admin });
     });
     // Users patch make admin
-    app.patch(
-      "/users/admin/:id",
-      verifyToken,
-      verifyAdmin,
-      async (req, res) => {
-        const id = req?.params?.id;
-        const filter = { _id: new ObjectId(id) };
-        const updatedDoc = {
-          $set: {
-            role: "admin",
-          },
-        };
-        const result = await usersCollection.updateOne(filter, updatedDoc);
-        res.send(result);
-      }
-    );
+    app.patch("/users/admin/:id", verifyToken, verifyAdmin, async (req, res) => {
+      const id = req?.params?.id;
+      const filter = { _id: new ObjectId(id) };
+      const updatedDoc = {
+        $set: {
+          role: "admin",
+        },
+      };
+      const result = await usersCollection.updateOne(filter, updatedDoc);
+      res.send(result);
+    });
     // Users Delete
-    app.delete(
-      "/users/delete/:id",
-      verifyToken,
-      verifyAdmin,
-      async (req, res) => {
-        const id = req?.params?.id;
-        const result = await usersCollection.deleteOne({
-          _id: new ObjectId(id),
-        });
-        res.send(result);
-      }
-    );
+    app.delete("/users/delete/:id", verifyToken, verifyAdmin, async (req, res) => {
+      const id = req?.params?.id;
+      const result = await usersCollection.deleteOne({
+        _id: new ObjectId(id),
+      });
+      res.send(result);
+    });
     ////////////////////// Product Collection ////////////////////////
 
     // post all product
@@ -203,15 +198,7 @@ async function run() {
     });
     app.get("/products/all", async (req, res) => {
       try {
-        const {
-          brands,
-          ram,
-          colors,
-          driveSizes,
-          gpuBrands,
-          processors,
-          screenSizes,
-        } = req.query;
+        const { brands, ram, colors, driveSizes, gpuBrands, processors, screenSizes } = req.query;
 
         // Initialize query object
         const query = {};
@@ -302,11 +289,7 @@ async function run() {
         } else {
           const skip = (page - 1) * limit;
           totalBlogs = await blogsCollection.countDocuments();
-          blogs = await blogsCollection
-            .find()
-            .skip(skip)
-            .limit(limit)
-            .toArray();
+          blogs = await blogsCollection.find().skip(skip).limit(limit).toArray();
         }
 
         res.status(200).json({
@@ -364,9 +347,7 @@ async function run() {
           }
         }
 
-        res
-          .status(200)
-          .json({ message: "Product added to wishlist", wishlist });
+        res.status(200).json({ message: "Product added to wishlist", wishlist });
       } catch (error) {
         console.error("Error adding product to wishlist:", error);
         res.status(500).json({ error: "Internal Server Error" });
@@ -407,19 +388,12 @@ async function run() {
         }
 
         // Filter out the product from the products array
-        const updatedProducts = wishlist.products.filter(
-          (product) => product._id !== productId
-        );
+        const updatedProducts = wishlist.products.filter((product) => product._id !== productId);
 
         // Update the wishlist with the new products array
-        await wishlistCollection.updateOne(
-          { userId },
-          { $set: { products: updatedProducts } }
-        );
+        await wishlistCollection.updateOne({ userId }, { $set: { products: updatedProducts } });
 
-        res
-          .status(200)
-          .json({ message: "Product removed from wishlist", updatedProducts });
+        res.status(200).json({ message: "Product removed from wishlist", updatedProducts });
       } catch (error) {
         console.error("Error removing product from wishlist:", error);
         res.status(500).json({ error: "Internal Server Error" });
@@ -438,9 +412,7 @@ async function run() {
 
         if (userCart) {
           // Check if the product is already in the cart
-          const productExists = userCart.products.find(
-            (p) => p.product._id === product._id
-          );
+          const productExists = userCart.products.find((p) => p.product._id === product._id);
 
           if (productExists) {
             // If product exists, return a message
@@ -518,9 +490,7 @@ async function run() {
         }
 
         // Filter out the product from the products array
-        const updatedProducts = cart.products.filter(
-          (item) => item.product._id !== productId
-        );
+        const updatedProducts = cart.products.filter((item) => item.product._id !== productId);
 
         // Update the cart with the new products array
         const updateResult = await cartCollection.updateOne(
@@ -566,9 +536,7 @@ async function run() {
         if (result.modifiedCount > 0) {
           // Check if quantity is now 0 and remove the product if it is
           const updatedCart = await cartCollection.findOne({ userEmail });
-          const product = updatedCart.products.find(
-            (p) => p.product._id === productId
-          );
+          const product = updatedCart.products.find((p) => p.product._id === productId);
 
           if (product && product.quantity <= 0) {
             await cartCollection.updateOne(
@@ -578,9 +546,7 @@ async function run() {
           }
 
           res.status(200).json({
-            message: `Quantity ${
-              action === "increase" ? "increased" : "decreased"
-            }`,
+            message: `Quantity ${action === "increase" ? "increased" : "decreased"}`,
           });
         } else {
           res.status(404).json({ message: "Product not found in cart" });
@@ -595,10 +561,7 @@ async function run() {
     app.post("/api/cart/clear/:userEmail", async (req, res) => {
       try {
         const { userEmail } = req.params;
-        await cartCollection.updateOne(
-          { userEmail },
-          { $set: { products: [] } }
-        );
+        await cartCollection.updateOne({ userEmail }, { $set: { products: [] } });
         res.status(200).json({ message: "Cart cleared successfully" });
       } catch (error) {
         res.status(500).json({ message: "Error clearing cart" });
@@ -680,10 +643,7 @@ async function run() {
           // After order is saved, send email to the admin
           await sendOrderEmail(newPayment); // Pass user's email
 
-          if (
-            updateResult.matchedCount === 0 ||
-            updateResult.modifiedCount === 0
-          ) {
+          if (updateResult.matchedCount === 0 || updateResult.modifiedCount === 0) {
             console.error("Payment update failed for existing user.");
             return res.status(500).send("Payment update failed");
           }
@@ -720,9 +680,7 @@ async function run() {
 
         // Check if payment status is valid
         if (successData.status !== "VALID") {
-          return res
-            .status(401)
-            .json({ message: "Unauthorized Payment, Invalid Payment" });
+          return res.status(401).json({ message: "Unauthorized Payment, Invalid Payment" });
         }
 
         // Log transaction ID to make sure it exists
@@ -783,10 +741,7 @@ async function run() {
 
         // Check if the update modified any documents
         if (result.matchedCount === 0) {
-          console.error(
-            "No matching payment found for the transaction ID:",
-            cancelData.tran_id
-          );
+          console.error("No matching payment found for the transaction ID:", cancelData.tran_id);
           return res.status(404).json({ message: "No matching payment found" });
         }
 
@@ -795,9 +750,7 @@ async function run() {
           return res.redirect("https://techheim.netlify.app/payment-cancel");
         } else {
           console.error("Payment update failed, document was not modified.");
-          return res
-            .status(400)
-            .json({ message: "Payment status update failed" });
+          return res.status(400).json({ message: "Payment status update failed" });
         }
       } catch (error) {
         console.error("Error updating payment status to 'Cancel':", error);
@@ -833,10 +786,7 @@ async function run() {
 
         // Check if the update modified any documents
         if (result.matchedCount === 0) {
-          console.error(
-            "No matching payment found for the transaction ID:",
-            failData.tran_id
-          );
+          console.error("No matching payment found for the transaction ID:", failData.tran_id);
           return res.status(404).json({ message: "No matching payment found" });
         }
 
@@ -845,9 +795,7 @@ async function run() {
           return res.redirect("https://techheim.netlify.app/payment-fail");
         } else {
           console.error("Payment update failed, document was not modified.");
-          return res
-            .status(400)
-            .json({ message: "Payment status update failed" });
+          return res.status(400).json({ message: "Payment status update failed" });
         }
       } catch (error) {
         console.error("Error updating payment status to Failed:", error);
@@ -866,9 +814,7 @@ async function run() {
         });
 
         if (!userPayments) {
-          return res
-            .status(404)
-            .json({ message: "No payment data found for this user" });
+          return res.status(404).json({ message: "No payment data found for this user" });
         }
 
         // Send the payment data back to the frontend
@@ -889,20 +835,14 @@ async function run() {
         });
 
         if (!payment) {
-          return res
-            .status(404)
-            .json({ message: "No payment data found for this ID" });
+          return res.status(404).json({ message: "No payment data found for this ID" });
         }
 
         // Find the specific payment within the userPayment array
-        const specificPayment = payment.userPayment.find(
-          (p) => p.paymentId === paymentId
-        );
+        const specificPayment = payment.userPayment.find((p) => p.paymentId === paymentId);
 
         if (!specificPayment) {
-          return res
-            .status(404)
-            .json({ message: "No payment data found for this ID" });
+          return res.status(404).json({ message: "No payment data found for this ID" });
         }
 
         // Send the specific payment data back to the frontend
@@ -959,16 +899,12 @@ async function run() {
         );
 
         if (result.modifiedCount === 0) {
-          return res
-            .status(404)
-            .json({ message: "Payment not found or not updated" });
+          return res.status(404).json({ message: "Payment not found or not updated" });
         }
 
         res.json({ message: "Delivery status updated successfully" });
       } catch (error) {
-        res
-          .status(500)
-          .json({ message: "Error updating delivery status", error });
+        res.status(500).json({ message: "Error updating delivery status", error });
       }
     });
     // Get Success Latest Payment
@@ -1032,6 +968,90 @@ async function run() {
         revenue,
       });
     });
+
+    // Route to generate and download a receipt
+    app.post("/api/generate-receipt", (req, res) => {
+      const {
+        timestamp,
+        status,
+        paymentType,
+        paymentIssuer,
+        paymentId,
+        deliveryStatus,
+        customerName,
+        customerEmail,
+        amount,
+        cart,
+      } = req.body;
+
+      console.log(cart);
+
+      const doc = new PDFDocument();
+      const receiptPath = path.join(receiptFolder, `receipt_${paymentId}.pdf`);
+
+      // Stream PDF file to write on disk
+      const writeStream = fs.createWriteStream(receiptPath);
+      doc.pipe(writeStream);
+
+      // Generate receipt content
+      doc.fontSize(20).text("Tech Heim", { align: "center" });
+      doc.fontSize(12).text("-------------------------------------------", { align: "center" });
+      doc.text("Official Payment Receipt", { align: "center" });
+      doc.text("-------------------------------------------", { align: "center" });
+
+      doc.text(`Receipt #: ${paymentId.slice(0, 5)}`);
+      doc.text(`Transaction ID: TXN-${paymentId}`);
+      doc.text(`Order Date: ${new Date(timestamp).toLocaleDateString()}`);
+      doc.text(`Receipt Download Date: ${new Date().toLocaleDateString()}`);
+      doc.text("-------------------------------------------");
+      doc.text(`Billed To: ${customerName}`);
+      // doc.text(`Phone: ${customer.phone}`);
+      doc.text(`Email: ${customerEmail}`);
+      doc.text("-------------------------------------------");
+
+      doc.text("Items Purchased:");
+      cart.forEach((item, index) => {
+        const product = item.product;
+        doc.text(`${index + 1}. ${product.name}`); // First line for the product name
+        doc.text(`Qty: ${item.quantity}`); // First line for the product name
+        doc.text(`Price: $${product.sellPrice}`); // Second line for quantity and price
+        doc.moveDown(); // Adds a line break after each item
+      });
+      doc.text("-------------------------------------------");
+      doc.text(`Payment Status: ${status}`);
+      doc.text(`payment Type: ${paymentType}`);
+      doc.text(`payment Issuer: ${paymentIssuer}`);
+      doc.text(`Delivery Status: Place Order`);
+      doc.text(`Delivery Method: Ordinary`);
+      
+
+      const tax = (amount * 0.05).toFixed(2);
+      const grandTotal = (amount + parseFloat(tax)).toFixed(2);
+
+      doc.text("-------------------------------------------");
+      doc.text(`Subtotal: $${amount.toFixed(2)}`);
+      doc.text(`Tax (5%): $${tax}`);
+      doc.text("-------------------------------------------");
+      doc.fontSize(14).text(`Total Amount: $${grandTotal}`);
+      doc.text("-------------------------------------------");
+      doc.text("Thank you for your purchase!");
+
+      doc.end();
+
+      // Wait for the PDF to finish writing
+      writeStream.on("finish", () => {
+        // Serve the generated PDF file
+        const file = fs.readFileSync(receiptPath);
+        res.contentType("application/pdf");
+        res.send(file);
+      });
+
+      writeStream.on("error", (err) => {
+        console.error("Error writing PDF file", err);
+        res.status(500).send("Error generating receipt");
+      });
+    });
+
     console.log("You successfully connected to MongoDB!");
   } finally {
     // Ensures that the client will close when you finish/error
