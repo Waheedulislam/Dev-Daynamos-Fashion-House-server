@@ -968,40 +968,62 @@ async function run() {
 
     // Route to generate and download a receipt
     app.post("/api/generate-receipt", (req, res) => {
-      const { transactionId, customer, items, totalAmount } = req.body;
+      const {
+        timestamp,
+        status,
+        paymentType,
+        paymentIssuer,
+        paymentId,
+        deliveryStatus,
+        customerName,
+        customerEmail,
+        amount,
+        cart,
+      } = req.body;
+
+      console.log(cart);
 
       const doc = new PDFDocument();
-      const receiptPath = path.join(receiptFolder, `receipt_${transactionId}.pdf`);
+      const receiptPath = path.join(receiptFolder, `receipt_${paymentId}.pdf`);
 
       // Stream PDF file to write on disk
       const writeStream = fs.createWriteStream(receiptPath);
       doc.pipe(writeStream);
 
       // Generate receipt content
-      doc.fontSize(20).text("Company Name", { align: "center" });
+      doc.fontSize(20).text("Tech Heim", { align: "center" });
       doc.fontSize(12).text("-------------------------------------------", { align: "center" });
       doc.text("Official Payment Receipt", { align: "center" });
       doc.text("-------------------------------------------", { align: "center" });
 
-      doc.text(`Receipt #: ${transactionId}`);
-      doc.text(`Transaction ID: TXN-${transactionId}`);
-      doc.text(`Date: ${new Date().toLocaleDateString()}`);
+      doc.text(`Receipt #: ${paymentId.slice(0, 5)}`);
+      doc.text(`Transaction ID: TXN-${paymentId}`);
+      doc.text(`Order Date: ${new Date(timestamp).toLocaleDateString()}`);
+      doc.text(`Receipt Download Date: ${new Date().toLocaleDateString()}`);
       doc.text("-------------------------------------------");
-      doc.text(`Billed To: ${customer.name}`);
-      doc.text(`Phone: ${customer.phone}`);
-      doc.text(`Email: ${customer.email}`);
+      doc.text(`Billed To: ${customerName}`);
+      // doc.text(`Phone: ${customer.phone}`);
+      doc.text(`Email: ${customerEmail}`);
       doc.text("-------------------------------------------");
 
       doc.text("Items Purchased:");
-      items.forEach((item, index) => {
-        doc.text(`${index + 1}. ${item.name} Qty: ${item.qty} $${item.price}`);
+      cart.forEach((item, index) => {
+        const product = item.product;
+        doc.text(`${index + 1}. ${product.name}`); // First line for the product name
+        doc.text(`Qty: ${item.quantity}`); // First line for the product name
+        doc.text(`Price: $${product.sellPrice}`); // Second line for quantity and price
+        doc.moveDown(); // Adds a line break after each item
       });
+      doc.text("-------------------------------------------");
+      doc.text(`Payment Status: ${status}`);
+      doc.text(`payment Type: ${paymentType}`);
+      doc.text(`payment Issuer: ${paymentIssuer}`);
 
-      const tax = (totalAmount * 0.05).toFixed(2);
-      const grandTotal = (totalAmount + parseFloat(tax)).toFixed(2);
+      const tax = (amount * 0.05).toFixed(2);
+      const grandTotal = (amount + parseFloat(tax)).toFixed(2);
 
       doc.text("-------------------------------------------");
-      doc.text(`Subtotal: $${totalAmount.toFixed(2)}`);
+      doc.text(`Subtotal: $${amount.toFixed(2)}`);
       doc.text(`Tax (5%): $${tax}`);
       doc.text("-------------------------------------------");
       doc.fontSize(14).text(`Total Amount: $${grandTotal}`);
