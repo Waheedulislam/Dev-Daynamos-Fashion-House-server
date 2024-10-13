@@ -1016,10 +1016,11 @@ async function run() {
       });
       doc.text("-------------------------------------------");
       doc.text(`Payment Status: ${status}`);
-      doc.text(`Delivery Status: Place Order`);
-      doc.text(`Delivery Method: Ordinary`);
       doc.text(`payment Type: ${paymentType}`);
       doc.text(`payment Issuer: ${paymentIssuer}`);
+      doc.text(`Delivery Status: Place Order`);
+      doc.text(`Delivery Method: Ordinary`);
+      
 
       const tax = (amount * 0.05).toFixed(2);
       const grandTotal = (amount + parseFloat(tax)).toFixed(2);
