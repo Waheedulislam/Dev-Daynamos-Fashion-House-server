@@ -619,9 +619,12 @@ async function run() {
         total_amount: paymentInfo.totalPrice,
         currency: "EUR",
         tran_id: tran_id,
-        success_url: "http://localhost:5000/payment-success",
-        fail_url: "http://localhost:5000/payment-fail",
-        cancel_url: "http://localhost:5000/payment-cancel",
+        success_url:
+          "https://dev-daynamos-fashion-house-server.vercel.app/payment-success",
+        fail_url:
+          "https://dev-daynamos-fashion-house-server.vercel.app/payment-fail",
+        cancel_url:
+          "https://dev-daynamos-fashion-house-server.vercel.app/payment-cancel",
         cus_name: paymentInfo.userName,
         cus_email: userEmail,
         cus_add1: "Dhaka",
