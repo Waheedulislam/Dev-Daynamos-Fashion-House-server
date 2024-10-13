@@ -1016,6 +1016,7 @@ async function run() {
       });
       doc.text("-------------------------------------------");
       doc.text(`Payment Status: ${status}`);
+      doc.text(`Delivery Status: Place Order`);
       doc.text(`payment Type: ${paymentType}`);
       doc.text(`payment Issuer: ${paymentIssuer}`);
 
