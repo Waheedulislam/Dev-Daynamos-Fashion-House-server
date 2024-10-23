@@ -18,11 +18,13 @@ app.use(express.urlencoded({ extended: true })); // To parse URL-encoded bodies
 // Create a Nodemailer transporter
 const transporter = nodemailer.createTransport({
   service: "gmail", // Replace with your preferred email service
+  secure: true,
   auth: {
     user: "infotechheim@gmail.com", // Admin email
-    pass: "xjkqwtiwjqbqoesw", // Admin email password
+    pass: "mfpy pxpb xjuv uqkd", // Admin email password
   },
 });
+
 // Function to send email
 const sendOrderEmail = async (orderDetails) => {
   const mailOptions = {
@@ -638,7 +640,7 @@ async function run() {
             { $push: { userPayment: newPayment } }
           );
           // After order is saved, send email to the admin
-          await sendOrderEmail(newPayment); // Pass user's email
+          sendOrderEmail(newPayment); // Pass user's email
 
           if (updateResult.matchedCount === 0 || updateResult.modifiedCount === 0) {
             console.error("Payment update failed for existing user.");
@@ -652,7 +654,7 @@ async function run() {
 
           const insertResult = await paymentCollection.insertOne(newUser);
           // After order is saved, send email to the admin
-          await sendOrderEmail(newPayment); // Pass user's email
+          sendOrderEmail(newPayment); // Pass user's email
 
           if (!insertResult.acknowledged) {
             console.error("Failed to insert new user");
@@ -1020,7 +1022,6 @@ async function run() {
       doc.text(`payment Issuer: ${paymentIssuer}`);
       doc.text(`Delivery Status: Place Order`);
       doc.text(`Delivery Method: Ordinary`);
-      
 
       const tax = (amount * 0.05).toFixed(2);
       const grandTotal = (amount + parseFloat(tax)).toFixed(2);
