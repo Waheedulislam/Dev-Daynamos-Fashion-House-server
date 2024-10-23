@@ -699,7 +699,7 @@ async function run() {
 
         // Check if the update was successful
         if (result.modifiedCount === 1) {
-          return res.redirect("http://localhost:5173/payment-success");
+          return res.redirect("http://localhost:5173/payment-success"); 
         } else {
           console.error("Payment update failed. Result:", result);
           return res.status(400).json({ message: "Payment update failed" });
