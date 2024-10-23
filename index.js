@@ -20,7 +20,8 @@ const transporter = nodemailer.createTransport({
   service: "gmail", // Replace with your preferred email service
   auth: {
     user: "infotechheim@gmail.com", // Admin email
-    pass: "xjkqwtiwjqbqoesw", // Admin email password
+    // pass: "xjkqwtiwjqbqoesw", // Admin email password
+    pass: "kkmigqkwtylieszow", // Admin email password
   },
 });
 // Function to send email
