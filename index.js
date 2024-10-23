@@ -1016,7 +1016,7 @@ async function run() {
         const product = item.product;
         doc.text(`${index + 1}. ${product.name}`); // First line for the product name
         doc.text(`Qty: ${item.quantity}`); // First line for the product name
-        doc.text(`Price: $${product.sellPrice}`); // Second line for quantity and price
+        doc.text(`Price: $${product.sellPrice || product.regularPrice}`); // Second line for quantity and price
         doc.moveDown(); // Adds a line break after each item
       });
       doc.text("-------------------------------------------");
