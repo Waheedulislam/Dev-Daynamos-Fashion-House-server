@@ -695,7 +695,7 @@ async function run() {
           },
         };
 
-        const result = await paymentCollection.updateOne(query, update);
+        const  result = await paymentCollection.updateOne(query, update);
 
         // Check if the update was successful
         if (result.modifiedCount === 1) {
